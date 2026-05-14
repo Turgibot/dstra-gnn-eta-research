@@ -1,0 +1,36 @@
+% TikZ: Temporal Transformer detail (edge-level sequences)
+\tikzset{blk/.style={draw, rounded corners=2pt, thick, align=center, inner sep=4pt, fill=black!3},
+ mod/.style={blk, fill=blue!6}, note/.style={font=\footnotesize, align=left}}
+
+\begin{tikzpicture}[>=Latex, node distance=6mm]
+% Input sequences per static edge
+\node[blk, minimum width=30mm] (e1) {$x_{e_1}^{0..H-2}$};
+\node[blk, below=of e1, minimum width=30mm] (e2) {$x_{e_2}^{0..H-2}$};
+\node[blk, below=of e2, minimum width=30mm] (e3) {$x_{e_3}^{0..H-2}$};
+\node[note, right=2mm of e1] {edge features over time};
+
+% Positional encodings and projection
+\node[mod, right=18mm of e2, minimum width=36mm] (proj) {Input proj + \newline sinusoidal PE};
+\draw[->] (e1) -- (proj);
+\draw[->] (e2) -- (proj);
+\draw[->] (e3) -- (proj);
+
+% Transformer encoder stack
+\node[mod, right=18mm of proj, minimum width=40mm] (tf) {Transformer Encoder \newline ($N$ layers, $n_{head}$)};
+\draw[->] (proj) -- (tf);
+
+% Take last token, norm, project back
+\node[mod, right=18mm of tf, minimum width=40mm] (last) {Last token + LayerNorm};
+\node[mod, below=of last, minimum width=40mm] (outp) {Output proj (to edge dim)};
+\draw[->] (tf) -- (last);
+\draw[->] (last) -- (outp);
+
+% Edge-context pooling
+\node[blk, right=18mm of outp, minimum width=36mm] (pool) {Mean over edges \newline Graph context};
+\draw[->] (outp) -- (pool);
+
+\end{tikzpicture}
+
+
+
+

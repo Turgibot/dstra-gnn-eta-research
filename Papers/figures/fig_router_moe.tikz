@@ -1,0 +1,38 @@
+% TikZ: Router + MoE (Top-k=2 over 6 experts)
+\tikzset{blk/.style={draw, rounded corners=2pt, thick, align=center, inner sep=5pt, fill=black!3},
+ moe/.style={blk, fill=orange!12}, op/.style={blk, fill=black!1}, note/.style={font=\footnotesize, align=left}}
+
+\begin{tikzpicture}[>=Latex, node distance=8mm]
+% Inputs
+\node[blk, minimum width=40mm] (fused) {Fused vehicle vector};
+\node[op, right=12mm of fused, minimum width=40mm] (router) {Router softmax (\(\tau\)) \\ Top-$k=2$};
+\draw[->] (fused) -- (router);
+
+% Load balancing label (moved above router)
+\node[above=2mm of router, font=\footnotesize] {$\lambda_{lb}$ load-balancing; optional KL-to-uniform};
+
+% Experts row (lowered to make room for top arrows)
+\matrix (experts) [row sep=0mm, column sep=6mm, right=16mm of router, below=8mm of router] {
+  \node[moe, minimum width=20mm] (e0) {E0}; &
+  \node[moe, minimum width=20mm] (e1) {E1}; &
+  \node[moe, minimum width=20mm] (e2) {E2}; &
+  \node[moe, minimum width=20mm] (e3) {E3}; &
+  \node[moe, minimum width=20mm] (e4) {E4}; &
+  \node[moe, minimum width=20mm] (e5) {E5}; \\
+};
+
+% Routing edges (straight from router to each expert)
+\foreach \x in {0,1,2,3,4,5} {
+  \draw[->] (router.south) -- (e\x.north);
+}
+
+% Combine
+\node[blk, below=10mm of experts] (combine) {Weighted combine};
+\foreach \x in {0,1,2,3,4,5} {\draw[->] (e\x.south) -- ++(0,-4mm) -| (combine.north);}
+
+\node[blk, right=12mm of combine, minimum width=28mm] (eta) {ETA};
+\draw[->] (combine) -- (eta);
+\end{tikzpicture}
+
+
+

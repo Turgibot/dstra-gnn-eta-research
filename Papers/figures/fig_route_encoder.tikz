@@ -1,0 +1,16 @@
+% TikZ: Route Encoder (vehicle_route_left)
+\tikzset{blk/.style={draw, rounded corners=2pt, thick, align=center, inner sep=5pt, fill=black!3},
+ op/.style={blk, fill=green!7}, note/.style={font=\footnotesize, align=left}}
+
+\begin{tikzpicture}[>=Latex, node distance=8mm]
+\node[blk, minimum width=42mm] (seq) {route\_left: edge IDs [$e_1,\ldots,e_L$]};
+\node[op, right=12mm of seq, minimum width=38mm] (emb) {Edge-ID embedding \\ vocab $\approx1294$, dim 64};
+\draw[->] (seq) -- (emb);
+\node[op, right=12mm of emb, minimum width=30mm] (pool) {Mean pool};
+\draw[->] (emb) -- (pool);
+\node[blk, right=12mm of pool, minimum width=32mm] (out) {Route vector (64-d)};
+\draw[->] (pool) -- (out);
+\end{tikzpicture}
+
+
+

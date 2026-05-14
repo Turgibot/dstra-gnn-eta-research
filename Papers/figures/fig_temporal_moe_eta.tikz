@@ -1,0 +1,107 @@
+% TikZ diagram: DSTRA-GNN (Temporal MoE ETA)
+% This file is included by sections/methodology.tex
+
+% Styles used by nodes in this diagram
+\tikzset{
+  block/.style = {draw, rounded corners=2pt, thick, align=center, inner sep=6pt, fill=black!3},
+  small/.style = {draw, rounded corners=2pt, align=center, inner sep=4pt, fill=black!3},
+  op/.style    = {block, fill=blue!6},
+  opt/.style   = {block, fill=green!7},
+  moe/.style   = {block, fill=orange!12}
+}
+
+\begin{tikzpicture}[>=Latex, node distance=12mm]
+
+% --- LANE 1: H-1 snapshots (road edge features) ---
+\node[block, minimum width=42mm, minimum height=16mm] (snapdeck)
+  {$t{-}H{+}1,\ldots,t{-}1$ \\ \footnotesize Road edge features per snapshot};
+
+% faint background cards behind the main one (deck effect)
+\begin{scope}[on background layer]
+  % soft shadow under/behind the top card (horizontal alignment)
+  \node[fill=black!12, draw=none, rounded corners=2pt, minimum width=42mm, minimum height=18mm]
+    at ($(snapdeck.center)+(1.2mm,0mm)$) {};
+  % aligned background cards with thicker frames (exact same size as snapdeck)
+  % use snapdeck's corners to draw identically sized rectangles behind it
+  \draw[rounded corners=2pt, line width=1.4pt, draw=black!70, fill=white]
+    ($(snapdeck.south west)+(6mm,6mm)$) rectangle ($(snapdeck.north east)+(6mm,6mm)$);
+  \draw[rounded corners=2pt, line width=1.4pt, draw=black!70, fill=white]
+    ($(snapdeck.south west)+(5mm,5mm)$) rectangle ($(snapdeck.north east)+(5mm,5mm)$);
+  \draw[rounded corners=2pt, line width=1.4pt, draw=black!70, fill=white]
+    ($(snapdeck.south west)+(4mm,4mm)$) rectangle ($(snapdeck.north east)+(4mm,4mm)$);
+  \draw[rounded corners=2pt, line width=1.4pt, draw=black!70, fill=white]
+    ($(snapdeck.south west)+(3mm,3mm)$) rectangle ($(snapdeck.north east)+(3mm,3mm)$);
+  \draw[rounded corners=2pt, line width=1.4pt, draw=black!70, fill=white]
+    ($(snapdeck.south west)+(2mm,2mm)$) rectangle ($(snapdeck.north east)+(2mm,2mm)$);
+  \draw[rounded corners=2pt, line width=1.4pt, draw=black!70, fill=white]
+    ($(snapdeck.south west)+(1mm,1mm)$)  rectangle ($(snapdeck.north east)+(1mm,1mm)$);
+\end{scope}
+
+% --- Temporal module (lane 1) ---
+\node[op, below=15mm of snapdeck, minimum width=70mm] (temp)
+  {Temporal module: Transformer \\ \footnotesize edge-level dynamic road features };
+
+% --- LANE 2: last snapshot -> encoder -> vehicles ---
+\node[block, right=38mm of snapdeck, minimum width=42mm, minimum height=12mm] (lastsnap)
+  {Last snapshot $t$ \\ \footnotesize Dynamic graph};
+\node[op, below=of lastsnap, minimum width=45mm] (encoder)
+  {Graph Encoder};
+\node[small, below=of encoder] (vehsel) {Select vehicles at $t$};
+
+% --- Route encoder (optional, Full) ---
+\node[opt, right=22mm of vehsel, align=left, minimum width=55mm] (routeenc)
+  {Route Encoder\\ \footnotesize edge-id embedding + mean pooling\\
+   \footnotesize inputs: $vehicle\_route\_left$, $vehicle\_route\_left\_splits$};
+
+% --- Fusion / Router / Experts / Output ---
+\node[op,   below=of vehsel,  minimum width=70mm] (fusion)  {Fusion MLP};
+\node[moe,  below=of fusion,  minimum width=70mm] (router)  {Router (softmax, temperature, noise) \\ Top-$k$ selection};
+
+% Six experts laid out horizontally
+% Experts arranged in a centered single row (0..5 left to right)
+\matrix (expertsrow) [row sep=0mm, column sep=6mm, below=12mm of router] {
+  \node[moe, minimum width=24mm] (exp0) {Expert 0}; &
+  \node[moe, minimum width=24mm] (exp1) {Expert 1}; &
+  \node[moe, minimum width=24mm] (exp2) {Expert 2}; &
+  \node[moe, minimum width=24mm] (exp3) {Expert 3}; &
+  \node[moe, minimum width=24mm] (exp4) {Expert 4}; &
+  \node[moe, minimum width=24mm] (exp5) {Expert 5}; \\
+};
+
+\node[block, below=18mm of expertsrow, minimum width=70mm] (pred) {Per-vehicle ETA};
+
+% --- Connections ---
+% Lane 1 (temporal): window -> transformer -> fusion (context)
+\draw[->] (snapdeck) -- (temp);
+\draw[->] (temp.south) |- (fusion.west);
+
+% Lane 2 (spatial): last snapshot -> encoder -> vehicles -> fusion
+\draw[->] (lastsnap) -- (encoder);
+\draw[->] (encoder) -- (vehsel);
+\draw[->] (vehsel) -- (fusion);
+\draw[->] (fusion) -- (router);
+% router to each expert
+\draw[->] (router.south) to[out=-90,in=90] (exp0.north);
+\draw[->] (router.south) to[out=-90,in=90] (exp1.north);
+\draw[->] (router.south) to[out=-90,in=90] (exp2.north);
+\draw[->] (router.south) to[out=-90,in=90] (exp3.north);
+\draw[->] (router.south) to[out=-90,in=90] (exp4.north);
+\draw[->] (router.south) to[out=-90,in=90] (exp5.north);
+
+% experts to prediction (merged conceptually)
+\draw[->] (exp0.south)  |- (pred.west);
+\draw[->] (exp1.south)  |- (pred.west);
+\draw[->] (exp2.south)  -- (pred.north);
+\draw[->] (exp3.south)  -- (pred.north);
+\draw[->] (exp4.south)  |- (pred.east);
+\draw[->] (exp5.south)  |- (pred.east);
+
+% optional route path (Full)
+\draw[->, dashed] (vehsel) -- (routeenc);
+\draw[->, dashed] (routeenc.south) |- (fusion.east);
+
+% small notes (optional)
+% \node[above=0mm of snapdeck, font=\footnotesize] {Input from sliding window dataset};
+% \node[right=2mm of pred,  font=\footnotesize, align=left] {target inverted to seconds for metrics};
+
+\end{tikzpicture}

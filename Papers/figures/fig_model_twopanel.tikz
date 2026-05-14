@@ -1,0 +1,68 @@
+% TikZ: Two-panel dataflow overview (keeps current main figure intact)
+% Left: temporal context; Right: spatial+MoE path
+\tikzset{
+  block/.style = {draw, rounded corners=2pt, thick, align=center, inner sep=6pt, fill=black!3},
+  op/.style    = {block, fill=blue!6},
+  opt/.style   = {block, fill=green!7},
+  moe/.style   = {block, fill=orange!12}
+}
+
+\begin{tikzpicture}[>=Latex, node distance=8mm]
+% Panels
+\node[block, minimum width=60mm, minimum height=18mm] (win)
+  {Window $t{-}H{+}1\ldots t{-}1$ \\ \footnotesize static-edge features per snapshot};
+
+\node[op, below=of win, minimum width=60mm] (temp)
+  {Temporal Transformer \\ \footnotesize edge-level sequences, PE, $N$ layers};
+
+\node[op, below=of temp, minimum width=60mm] (pool)
+  {Edge context $\to$ graph context (proj + mean)};
+
+\node[block, right=28mm of win, minimum width=60mm, minimum height=12mm] (last)
+  {Last snapshot $t$ \\ \footnotesize dynamic graph};
+
+\node[op, below=of last, minimum width=60mm] (enc)
+  {Graph Encoder (GATv2)};
+
+\node[block, below=of enc, minimum width=40mm] (veh)
+  {Vehicle embeddings at $t$};
+
+\node[opt, right=20mm of veh, minimum width=40mm, align=left] (route)
+  {Route Encoder \\ \footnotesize edge-id emb + mean};
+
+\node[op, below=of veh, minimum width=70mm] (fuse)
+  {Fusion: concat [veh, context, (route)] $\to$ MLP};
+
+\node[moe, below=of fuse, minimum width=70mm] (router)
+  {Router (softmax) $\to$ Top-$k$};
+
+\matrix (expertsrow) [row sep=0mm, column sep=6mm, below=8mm of router] {
+  \node[moe, minimum width=18mm] (e0) {E0}; &
+  \node[moe, minimum width=18mm] (e1) {E1}; &
+  \node[moe, minimum width=18mm] (e2) {E2}; &
+  \node[moe, minimum width=18mm] (e3) {E3}; &
+  \node[moe, minimum width=18mm] (e4) {E4}; &
+  \node[moe, minimum width=18mm] (e5) {E5}; \\
+};
+
+\node[block, below=14mm of expertsrow, minimum width=70mm] (pred)
+  {Per-vehicle ETA};
+
+% Connections
+\draw[->] (win) -- (temp);
+\draw[->] (temp) -- (pool);
+
+\draw[->] (last) -- (enc);
+\draw[->] (enc)  -- (veh);
+\draw[->] (veh)  -- (fuse);
+\draw[->, dashed] (route.west) -- (fuse.east);
+\draw[->] (pool) -| (fuse.west);
+
+\draw[->] (fuse) -- (router);
+\foreach \x in {e0,e1,e2,e3,e4,e5}{\draw[->] (router.south) to[out=-90,in=90] (\x.north);}
+\foreach \x in {e0,e1,e2,e3,e4,e5}{\draw[->] (\x.south) -- ++(0,-3mm) |- (pred.north);}
+\end{tikzpicture}
+
+
+
+

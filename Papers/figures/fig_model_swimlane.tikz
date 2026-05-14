@@ -1,0 +1,50 @@
+% TikZ: Swimlane timeline (Temporal / Spatial / Intent)
+\tikzset{lane/.style={draw, rounded corners=2pt, thick, fill=black!1},
+ block/.style={draw, rounded corners=2pt, thick, align=center, inner sep=4pt, fill=black!3},
+ op/.style={block, fill=blue!6}, opt/.style={block, fill=green!7}, moe/.style={block, fill=orange!12}}
+
+\begin{tikzpicture}[>=Latex, node distance=6mm]
+% Lanes
+\node[lane, minimum width=120mm, minimum height=10mm, anchor=west] (laneT) at (0,0) {\hspace{2mm}\textbf{Temporal}};
+\node[lane, minimum width=120mm, minimum height=10mm, anchor=west, yshift=-12mm] (laneS) at (0,0) {\hspace{2mm}\textbf{Spatial}};
+\node[lane, minimum width=120mm, minimum height=10mm, anchor=west, yshift=-24mm] (laneI) at (0,0) {\hspace{2mm}\textbf{Intent}};
+
+% Temporal lane blocks
+\node[block, right=16mm of laneT.west] (win) {Window $t{-}H{+}1\ldots t{-}1$ \\ static-road edges};
+\node[op, right=8mm of win] (tr) {Transformer (edge-level) \\ PE, $N$ layers};
+\node[block, right=8mm of tr] (ctx) {Project + mean over edges \\ Graph context};
+
+% Spatial lane blocks
+\node[block, right=16mm of laneS.west] (tlast) {Snapshot $t$ (dynamic)};
+\node[op, right=8mm of tlast] (enc) {GATv2 Encoder};
+\node[block, right=8mm of enc] (veh) {Vehicles at $t$};
+
+% Intent lane blocks
+\node[opt, right=16mm of laneI.west] (route) {Route Encoder \\ edge-id emb + mean};
+
+% Fusion & MoE
+\node[op, right=18mm of veh] (fuse) {Fusion MLP};
+\node[moe, right=8mm of fuse] (router) {Router $\to$ Top-$k$};
+\matrix (rowE) [row sep=0mm, column sep=4mm, right=6mm of router] {
+  \node[moe, minimum width=12mm] (e0) {E0}; &
+  \node[moe, minimum width=12mm] (e1) {E1}; &
+  \node[moe, minimum width=12mm] (e2) {E2}; &
+  \node[moe, minimum width=12mm] (e3) {E3}; &
+  \node[moe, minimum width=12mm] (e4) {E4}; &
+  \node[moe, minimum width=12mm] (e5) {E5}; \\
+};
+\node[block, right=8mm of rowE] (pred) {ETA};
+
+% Connections
+\draw[->] (win) -- (tr); \draw[->] (tr) -- (ctx);
+\draw[->] (tlast) -- (enc); \draw[->] (enc) -- (veh);
+\draw[->] (veh) -- (fuse); \draw[->, dashed] (route) -- (fuse);
+\draw[->] (ctx) |- (fuse);
+\draw[->] (fuse) -- (router);
+\foreach \x in {e0,e1,e2,e3,e4,e5}{\draw[->] (router) -- (\x);}
+\foreach \x in {e0,e1,e2,e3,e4,e5}{\draw[->] (\x) -- (pred);}
+\end{tikzpicture}
+
+
+
+

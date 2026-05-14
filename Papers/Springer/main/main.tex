@@ -1,0 +1,94 @@
+%Version 3.1 December 2024
+% DSTRA-GNN Extended Version for SN Computer Science Special Issue
+% Special Issue: Pervasive digital services for people's well-being, inclusion and sustainable development
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                 %%
+%% Please do not use \input{...} to include other tex files.       %%
+%% Submit your LaTeX manuscript as one .tex document.              %%
+%%                                                                 %%
+%% All additional figures and files should be attached             %%
+%% separately and not embedded in the \TeX\ document itself.       %%
+%%                                                                 %%
+%% NOTE: This file uses \input{} for development convenience.     %%
+%% For submission, combine all sections into a single file.       %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[pdflatex,sn-basic,Numbered]{sn-jnl}% Basic Springer Nature Reference Style with Numbered Citations
+
+%%%% Standard Packages
+\usepackage{graphicx}%
+\usepackage{multirow}%
+\usepackage{amsmath,amssymb,amsfonts}%
+\usepackage{amsthm}%
+\usepackage{mathrsfs}%
+\usepackage[title]{appendix}%
+\usepackage{xcolor}%
+\usepackage{textcomp}%
+\usepackage{manyfoot}%
+\usepackage{booktabs}%
+\usepackage{url}%
+\usepackage{subfig}%
+\usepackage{adjustbox}%
+\usepackage{tikz}%
+\usetikzlibrary{arrows.meta, positioning, fit, shapes.multipart, calc, backgrounds}
+
+\raggedbottom
+
+% Configure natbib for numbered citations in square brackets [1], [2], etc.
+% (natbib is already loaded by sn-jnl class, so we configure it here)
+\setcitestyle{numbers,square}
+
+% Configure hyperref to make citations appear as regular black text (not blue links)
+\hypersetup{
+    hidelinks,
+    colorlinks=false
+}
+
+\begin{document}
+
+\title[Accurate ETA Prediction for Urban Mobility and Well-Being]{Accurate ETA Prediction Using Dynamic Route-Aware Graph Neural Networks for Improved Urban Mobility and Well-Being}
+
+\author[1]{\fnm{Guy} \sur{Tordjman}}\email{guy.tordjman@openu.ac.il}
+
+\author*[2]{\fnm{Nadav} \sur{Voloch}}\email{nadavv@ruppin.ac.il}
+
+\affil[1]{\orgdiv{Department of Mathematics and Computer Science}, \orgname{The Open University}, \orgaddress{\street{University Road 1}, \city{Ra'anana}, \country{Israel}}}
+
+\affil*[2]{\orgdiv{Department of Computer Engineering}, \orgname{Ruppin Academic Center}, \orgaddress{\city{Emek Hefer}, \country{Israel}}}
+
+\input{sections/abstract}
+
+\input{sections/keywords}
+
+\maketitle
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=0.80\textwidth]{figures/rush_hour.png}
+    \caption{Afternoon rush-hour snapshot spanning the network. Static junction nodes (light blue) and static road edges (gray) form the backbone; dynamic vehicle nodes (green) and traversal edges (orange arrows) reveal congestion corridors and high-flow funnels. Zones: A/B urban grids with dense signals and short links; C suburban ring with longer arterials and smoother flow; H connector hub that funnels inter-zone traffic and creates gateway bottlenecks.}\label{fig:rush-hour-intro}
+\end{figure*}
+
+\input{sections/introduction}
+
+\input{sections/related_work}
+
+\input{sections/methodology}
+
+\input{sections/experiments}
+
+\input{sections/results}
+
+\input{sections/discussion}
+
+\input{sections/conclusion}
+
+\backmatter
+
+\input{sections/declarations}
+
+\input{sections/appendices}
+
+\bibliography{references}
+
+\end{document}

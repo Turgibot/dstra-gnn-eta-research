@@ -1,0 +1,24 @@
+% Temporal comparison branch
+\begin{tikzpicture}[node distance=2.2cm, auto]
+    \node (route) [draw, rectangle, rounded corners=2pt, align=center, minimum width=22mm] {\texttt{route\_graph}};
+    \node (temporal_base) [draw, rectangle, rounded corners=2pt, above right of=route, align=center, xshift=6mm, minimum width=22mm] {\texttt{temporal\_base}};
+    \node (temporal_dynamic) [draw, rectangle, rounded corners=2pt, below right of=route, align=center, xshift=6mm, minimum width=26mm] {\texttt{temporal\_dynamic}};
+    \node (temporal_full) [draw, rectangle, rounded corners=2pt, right of=temporal_dynamic, align=center, xshift=12mm, minimum width=32mm] {\texttt{temporal\_route\_aware}};
+
+    \draw[->] (route) -- (temporal_base) node[midway, above left] {+Temporal (Base)};
+    \draw[->] (route) -- (temporal_dynamic) node[midway, below left] {+Temporal (Dynamic)};
+    \draw[->] (temporal_dynamic) -- (temporal_full) node[midway, above] {+Route};
+\end{tikzpicture}
+
+
+
+
+
+
+
+
+
+
+
+
+

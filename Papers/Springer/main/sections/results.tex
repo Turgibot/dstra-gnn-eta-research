@@ -1,0 +1,68 @@
+\section{Results and Analysis}\label{sec5}
+\noindent Validation results. Tables~\ref{tab:results_overall_bins} and~\ref{tab:mae_rmse_wape} report the performance of all ablation variants. The naive average-time baseline (\texttt{avg}) yields 260.6\,s MAE and 325.1\,s RMSE, with a MAPE of 127.8\%, confirming the task's difficulty.
+
+The \texttt{base\_graph} model, which uses only static road topology and basic vehicle kinematics, reduces MAE to 86.5\,s (66.8\% improvement). Short trips are predicted with 39.2\,s MAE, while medium and long trips remain harder (81.8\,s and 140.3\,s).
+
+Adding dynamic interaction edges in \texttt{dynamic\_graph} achieves 104.5\,s MAE (59.9\%), weaker than the static-only model. Errors for medium/long trips (95.9\,s and 177.5\,s) indicate that dynamic edges without route features add noise rather than signal.
+
+The \texttt{route\_aware\_graph} variant delivers strong gains: 58.4\,s MAE overall, with 24.2\,s (short), 54.8\,s (medium), and 97.6\,s (long). Explicitly encoding planned routes and edge demand/occupancy lets the model anticipate congestion along a vehicle's actual path.
+
+Temporal variants further refine performance. \texttt{temporal\_base} achieves 92.6\,s MAE (64.5\%), mainly improving medium trips but struggling on short trips (61.4\,s). \texttt{temporal\_dymanic} improves to 78.8\,s MAE (69.8\%), showing that temporal memory of interaction edges helps even without route features.
+
+The best performance is \texttt{temporal\_route\_aware}, which combines temporal aggregation with explicit route features: 46.2\,s MAE and 107.2\,s RMSE (82.3\% improvement), with balanced per-bin accuracy (24.1\,s short, 38.3\,s medium, 76.9\,s long) and the lowest MAPE (17.9\%).
+
+Equally important is the underlying dataset representation. Unlike prior work that models only road segments or aggregated trajectories, our dataset is structured as a dynamic graph where both junctions and vehicles are nodes. Static road edges encode the persistent infrastructure, while dynamic edges evolve at every snapshot to reflect vehicle--junction and vehicle--vehicle relationships. This design allows the model to jointly learn from the stable backbone of the road network and the transient dynamics of traffic flow, enabling the strong gains observed in route-aware and temporal variants.
+
+\begin{table}[t]
+    \centering
+    \caption{Overall and per-bin validation MAE (seconds) averaged over seeds 42--44 (best epoch per seed). Improvement is relative to the AVG baseline.}
+    \label{tab:results_overall_bins}
+    \begin{tabular}{@{}lccccc@{}}
+        \toprule
+        \textbf{Variant} & \textbf{MAE} & \textbf{Short} & \textbf{Medium} & \textbf{Long} & \textbf{Improve vs AVG} \\
+        \midrule
+        avg                    & 260.63 & 282.20 & 83.56 & 430.67 & 0.0\% \\
+        base\_graph            & 86.46  & 39.20  & 81.79 & 140.27 & 66.8\% \\
+        dynamic\_graph         & 104.51 & 42.65  & 95.99 & 177.54 & 59.9\% \\
+        route\_aware\_graph    & 58.42  & 24.19  & 54.84 & 97.61  & 77.6\% \\
+        temporal\_base         & 92.62  & 61.35  & 83.54 & 135.00 & 64.5\% \\
+        temporal\_dynamic      & 78.79  & 32.04  & 67.58 & 142.14 & 69.8\% \\
+        temporal\_route\_aware  & 46.16  & 24.05  & 38.31 & 76.90  & 82.3\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[t]
+    \centering
+    \caption{Duration binning used throughout (validation split). Thresholds from Fig.~\ref{fig:eta-dist}.}
+    \label{tab:binning}
+    \begin{tabular}{@{}lccc@{}}
+        \toprule
+        \textbf{Bin} & \textbf{ETA range (s)} & $\boldsymbol{\tau}$ \textbf{(s)} & \textbf{Count} \\
+        \midrule
+        Short  & $[0,\,277]$       & 30  & 33{,}227 \\
+        Medium & $(277,\,609]$     & 60  & 34{,}996 \\
+        Long   & $>\,609$          & 120 & 32{,}228 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[t]
+    \centering
+    \caption{Overall validation MAE and RMSE (seconds) and MAPE (\%). Best epoch per variant on validation; averaged over seeds 42--44 where available. MAPE values are estimated where missing in logs.}
+    \label{tab:mae_rmse_wape}
+    \begin{tabular}{@{}lccc@{}}
+        \toprule
+        \textbf{Variant} & \textbf{MAE (s)} & \textbf{RMSE (s)} & \textbf{MAPE (\%)} \\
+        \midrule
+        avg                    & 260.63 & 325.13 & 127.75 \\
+        base\_graph            & 86.46  & 145.08 & 33.70 \\
+        dynamic\_graph         & 104.51 & 157.65 & 40.73 \\
+        route\_aware\_graph    & 58.42  & 106.99 & 22.77 \\
+        temporal\_base         & 92.62  & 155.48 & 26.51 \\
+        temporal\_dynamic      & 78.79  & 127.88 & 30.70 \\
+        temporal\_route\_aware  & 46.16  & 107.15 & 17.99 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+

@@ -1,0 +1,22 @@
+% Ablation progression path
+\begin{tikzpicture}[node distance=2cm, auto]
+    \node (base) [draw, rectangle, rounded corners=2pt, align=center, minimum width=18mm] {\texttt{base\_graph}};
+    \node (dynamic) [draw, rectangle, rounded corners=2pt, right of=base, align=center, minimum width=18mm] {\texttt{dynamic\_graph}};
+    \node (route) [draw, rectangle, rounded corners=2pt, right of=dynamic, align=center, minimum width=18mm] {\texttt{route\_graph}};
+    \node (temporal_base) [draw, rectangle, rounded corners=2pt, right of=route, align=center, minimum width=22mm] {\texttt{temporal\_base}};
+
+    \draw[->] (base) -- (dynamic) node[midway, above] {+Dynamic};
+    \draw[->] (dynamic) -- (route) node[midway, above] {+Route};
+    \draw[->] (route) -- (temporal_base) node[midway, above] {+Temporal};
+\end{tikzpicture}
+
+
+
+
+
+
+
+
+
+
+

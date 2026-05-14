@@ -1,0 +1,27 @@
+% TikZ: Graph Encoder (GATv2 with edge features)
+\tikzset{blk/.style={draw, rounded corners=2pt, thick, align=center, inner sep=5pt, fill=black!3},
+ op/.style={blk, fill=blue!6}, note/.style={font=\footnotesize, align=left}}
+
+\begin{tikzpicture}[>=Latex, node distance=8mm]
+% Input features
+\node[blk, minimum width=35mm] (nodes) {Node features \\ $h_v \in \mathbb{R}^d$};
+\node[blk, below=of nodes, minimum width=35mm] (edges) {Edge features \\ $e_{uv} \in \mathbb{R}^{d_e}$};
+
+% GATv2 layers
+\node[op, right=12mm of nodes, minimum width=40mm] (gat1) {GATv2 Layer 1 \\ attention + aggregation};
+\node[op, right=12mm of gat1, minimum width=40mm] (gat2) {GATv2 Layer 2 \\ attention + aggregation};
+
+% Output
+\node[blk, right=12mm of gat2, minimum width=35mm] (out) {Node embeddings \\ $h_v' \in \mathbb{R}^d$};
+
+% Connections
+\draw[->] (nodes) -- (gat1);
+\draw[->] (edges) -- (gat1);
+\draw[->] (gat1) -- (gat2);
+\draw[->] (gat2) -- (out);
+
+% Labels
+\node[note, below=2mm of edges] {static graph features};
+\node[note, below=2mm of out] {encoded representations};
+
+\end{tikzpicture}
