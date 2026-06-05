@@ -1,0 +1,40 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── LaTeX build artifacts ─────────────────────────────────────────────────────
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+Papers/Springer/main/main.pdf
+
+# ── Datasets: large data files (not tracked — acquire via pipeline) ───────────
+# Porto graph: raw snapshots, labels, and road-topology JSON (35 MB)
+datasets/real/porto_taxi_graph/snapshots/
+datasets/real/porto_taxi_graph/labels/
+datasets/real/porto_taxi_graph/static.json
+# Porto trajectory: raw CSVs and processed outputs
+datasets/real/porto_taxi_traj/train.csv
+datasets/real/porto_taxi_traj/test.csv
+datasets/real/porto_taxi_traj/processed/
+# SUMO simulated: snapshots (9.9 GB), labels (12 GB), mapping (1 GB), zips
+datasets/simulated/3zones/snapshots/
+datasets/simulated/3zones/labels/
+datasets/simulated/3zones/mapping/
+datasets/simulated/3zones/*.zip
+
+# ── Results: track metrics but not saved model binaries ───────────────────────
+results/*/model/
+
+# ── Reference PDFs (binary, use BibTeX entries instead) ───────────────────────
+references/*.pdf
+
+# ── Springer template unpacked dir (zip is the canonical source) ──────────────
+Papers/Springer/Template/springer-nature-template/

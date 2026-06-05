@@ -1,0 +1,46 @@
+{
+  "val": {
+    "split": "val",
+    "n_trips": 75655,
+    "mae_s": 107.6086,
+    "rmse_s": 133.7836,
+    "mape_pct": 19.5021,
+    "intercept": 584.2296,
+    "coefficients": {
+      "od_dist_m": 3.810706,
+      "polyline_dist_m": 98.002567,
+      "dist_ratio": -1.42949,
+      "bearing_sin": 4.362243,
+      "bearing_cos": -4.358908,
+      "hour_sin": -25.277327,
+      "hour_cos": -34.148108,
+      "dow_sin": -4.908547,
+      "dow_cos": -1.517562,
+      "is_weekend": -17.349764,
+      "is_holiday": 0.0,
+      "log_od_dist_m": -18.399983
+    }
+  },
+  "test": {
+    "split": "test",
+    "n_trips": 161401,
+    "mae_s": 107.5805,
+    "rmse_s": 133.8908,
+    "mape_pct": 19.6737,
+    "intercept": 584.2296,
+    "coefficients": {
+      "od_dist_m": 3.810706,
+      "polyline_dist_m": 98.002567,
+      "dist_ratio": -1.42949,
+      "bearing_sin": 4.362243,
+      "bearing_cos": -4.358908,
+      "hour_sin": -25.277327,
+      "hour_cos": -34.148108,
+      "dow_sin": -4.908547,
+      "dow_cos": -1.517562,
+      "is_weekend": -17.349764,
+      "is_holiday": 0.0,
+      "log_od_dist_m": -18.399983
+    }
+  }
+}

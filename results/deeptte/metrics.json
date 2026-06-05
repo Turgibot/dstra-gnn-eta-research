@@ -1,0 +1,27 @@
+{
+  "val": {
+    "mae_s": 66.9076,
+    "rmse_s": 88.3288,
+    "mape_pct": 11.7423,
+    "n_trips": 75653,
+    "split": "val"
+  },
+  "test": {
+    "mae_s": 68.5929,
+    "rmse_s": 90.6807,
+    "mape_pct": 12.1332,
+    "n_trips": 161400,
+    "split": "test"
+  },
+  "config": {
+    "splits_dir": "/home/guy/Projects/dstra-gnn-eta-research/datasets/real/porto_taxi_traj/processed/splits",
+    "output_dir": "/home/guy/Projects/dstra-gnn-eta-research/results/deeptte",
+    "epochs": 100,
+    "batch_size": 256,
+    "lr": 0.001,
+    "patience": 10,
+    "seed": 42,
+    "workers": 4,
+    "device": null
+  }
+}

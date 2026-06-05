@@ -1,0 +1,16 @@
+{
+  "val": {
+    "split": "val",
+    "n_pairs": 7401738,
+    "mae_s": 837.9496,
+    "rmse_s": 2112.1535,
+    "mape_pct": 62.6828
+  },
+  "test": {
+    "split": "test",
+    "n_pairs": 7403844,
+    "mae_s": 875.1885,
+    "rmse_s": 2194.3429,
+    "mape_pct": 63.0064
+  }
+}

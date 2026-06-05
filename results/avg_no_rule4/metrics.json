@@ -1,0 +1,26 @@
+{
+  "val": {
+    "split": "val",
+    "n_trips": 76758,
+    "mae_s": 112.1616,
+    "rmse_s": 141.6586,
+    "mape_pct": 20.4379,
+    "coverage": {
+      "level1_od_hour_pct": 96.39,
+      "level2_od_pct": 3.28,
+      "level3_global_pct": 0.33
+    }
+  },
+  "test": {
+    "split": "test",
+    "n_trips": 164032,
+    "mae_s": 113.8732,
+    "rmse_s": 143.3287,
+    "mape_pct": 20.9878,
+    "coverage": {
+      "level1_od_hour_pct": 94.69,
+      "level2_od_pct": 4.84,
+      "level3_global_pct": 0.47
+    }
+  }
+}

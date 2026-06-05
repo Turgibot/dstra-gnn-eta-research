@@ -1,0 +1,42 @@
+{
+  "val": {
+    "split": "val",
+    "n_trips": 75655,
+    "mae_s": 84.9738,
+    "rmse_s": 111.0253,
+    "mape_pct": 14.7446,
+    "best_iteration": 454,
+    "feature_importance": {
+      "polyline_dist_m": 1679481.68,
+      "hour": 640640.01,
+      "dest_cx": 311263.67,
+      "dist_ratio": 235958.13,
+      "dest_cy": 205635.62,
+      "origin_cx": 184975.05,
+      "od_dist_m": 156022.02,
+      "dow": 134829.63,
+      "origin_cy": 127666.38,
+      "bearing_cos": 105116.0
+    }
+  },
+  "test": {
+    "split": "test",
+    "n_trips": 161401,
+    "mae_s": 86.4142,
+    "rmse_s": 113.2145,
+    "mape_pct": 15.0045,
+    "best_iteration": 454,
+    "feature_importance": {
+      "polyline_dist_m": 1679481.68,
+      "hour": 640640.01,
+      "dest_cx": 311263.67,
+      "dist_ratio": 235958.13,
+      "dest_cy": 205635.62,
+      "origin_cx": 184975.05,
+      "od_dist_m": 156022.02,
+      "dow": 134829.63,
+      "origin_cy": 127666.38,
+      "bearing_cos": 105116.0
+    }
+  }
+}
