@@ -15,7 +15,11 @@ __pycache__/
 *.toc
 Papers/Springer/main/main.pdf
 
+# ── Internal Claude tooling (not for publication) ─────────────────────────────
+CLAUDE.md
+
 # ── Datasets: large data files (not tracked — acquire via pipeline) ───────────
+datasets/
 # Porto graph: raw snapshots, labels, and road-topology JSON (35 MB)
 datasets/real/porto_taxi_graph/snapshots/
 datasets/real/porto_taxi_graph/labels/
