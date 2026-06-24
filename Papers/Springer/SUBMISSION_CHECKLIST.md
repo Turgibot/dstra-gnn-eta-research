@@ -70,6 +70,16 @@ Based on: https://link.springer.com/journal/42979/submission-guidelines
 - [ ] All packages properly loaded
 - [ ] No custom commands that conflict with template
 
+### Final LaTeX Consolidation (do this LAST, right before upload — verified against `Template/springer-nature-template/sn-article-template/user-manual.pdf`)
+- [ ] Combine `main.tex` + all `sections/*.tex` into one single `.tex` file — the template explicitly forbids `\input{...}` for submission ("Submit your LaTeX manuscript as one .tex document")
+- [ ] Inline or pre-render the 8 `\input{figures/*.tikz}` calls in `methodology.tex` (`fig_dynamic_graph`, `fig_encoder`, `fig_route_encoder`, `fig_router_moe`, `fig_temporal_moe_eta`, `fig_temporal_gru_detail`, + 2 more) — same `\input` rule applies to these as to section files. Either paste each `tikzpicture` body inline, or render to PDF/PNG and switch to `\includegraphics`
+- [ ] Move all figure files out of the `figures/` subfolder to sit flat next to the consolidated `.tex` file, and update every `\includegraphics`/`\input` path — manual states the submission system cannot resolve subfolder paths
+- [ ] Decide whether to keep `\subfloat` (subfig package, used for the 3-panel architecture figure in methodology) or split it into separate full-width figures — manual recommends avoiding subfigures
+- [ ] Drop the unused `\usepackage{adjustbox}` import (loaded, never used)
+- [ ] Optional: tighten `\tabcolsep`/font in the related-work comparison table (`related_work.tex` Table 1) to clear a 2.7pt overfull-hbox warning (cosmetic, invisible at print res)
+- [ ] Optional: trim abstract from ~252 words to ≤250 to match the target stated above
+- [ ] Recompile the consolidated single file clean (zero warnings) and diff visually against the current modular build before upload
+
 ### Headings
 - [ ] No more than three levels of displayed headings used
 - [ ] Heading hierarchy is logical and consistent
@@ -311,9 +321,9 @@ Based on: https://link.springer.com/journal/42979/submission-guidelines
 - [ ] Cover letter (if required)
 
 ### LaTeX-Specific Files
-- [ ] main.tex ✓
+- [ ] main.tex ✓ (dev copy only — must be consolidated into one single file before upload, see "Final LaTeX Consolidation" above)
 - [ ] references.bib ✓
-- [ ] All figure files in figures/ directory ✓
+- [ ] All figure files flattened to the same directory as the consolidated .tex file (NOT in a figures/ subfolder — submission system can't resolve subfolder paths; current dev tree keeps them in figures/, that's fine for development only)
 - [ ] sn-jnl.cls class file ✓
 - [ ] sn-basic.bst bibliography style ✓
 

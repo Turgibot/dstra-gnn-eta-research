@@ -42,3 +42,23 @@ references/*.pdf
 
 # ── Springer template unpacked dir (zip is the canonical source) ──────────────
 Papers/Springer/Template/springer-nature-template/
+DynamicMoeIntentGNN
+
+# ── Commit scope: revised Springer manuscript only ────────────────────────────
+# Ignore every untracked path except the active revised paper folder.
+# Explicit entries for large/non-submission folders; the catch-all below covers
+# anything not listed here as well.
+models/
+results/
+analysis/
+references/
+datasets/
+Papers/figures/
+*
+!.gitignore
+!Papers/
+Papers/*
+!Papers/Springer/
+Papers/Springer/*
+!Papers/Springer/main/
+!Papers/Springer/main/**

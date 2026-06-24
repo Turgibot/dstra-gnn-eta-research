@@ -13,7 +13,7 @@
   {Window $t{-}H{+}1\ldots t{-}1$ \\ \footnotesize static-edge features per snapshot};
 
 \node[op, below=of win, minimum width=60mm] (temp)
-  {Temporal Transformer \\ \footnotesize edge-level sequences, PE, $N$ layers};
+  {Temporal GRU \\ \footnotesize edge-level sequences, hidden $d{=}128$};
 
 \node[op, below=of temp, minimum width=60mm] (pool)
   {Edge context $\to$ graph context (proj + mean)};

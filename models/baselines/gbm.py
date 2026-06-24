@@ -23,6 +23,7 @@ class GBMConfig:
     reg_lambda: float = 0.1
     early_stopping_rounds: int = 50
     grid_resolution: float = 0.01
+    num_threads: int = 4
 
 
 class GBMBaseline:
@@ -48,10 +49,17 @@ class GBMBaseline:
         tr = train_df.filter(pl.col("polyline") != "[]")
         va = val_df.filter(pl.col("polyline") != "[]")
 
-        X_tr, self._feature_names = extract_gbm_features(tr, self.config.grid_resolution)
-        X_va, _                   = extract_gbm_features(va, self.config.grid_resolution)
+        X_tr, feature_names = extract_gbm_features(tr, self.config.grid_resolution)
+        X_va, _             = extract_gbm_features(va, self.config.grid_resolution)
         y_tr = tr["travel_time_s"].to_numpy()
         y_va = va["travel_time_s"].to_numpy()
+
+        self.fit_xy(X_tr, y_tr, X_va, y_va, feature_names)
+
+    def fit_xy(self, X_tr: np.ndarray, y_tr: np.ndarray, X_va: np.ndarray, y_va: np.ndarray,
+               feature_names: list) -> None:
+        """Fit directly on pre-extracted feature matrices (e.g. SUMO features)."""
+        self._feature_names = feature_names
 
         dtrain = lgb.Dataset(X_tr, label=y_tr, feature_name=self._feature_names)
         dval   = lgb.Dataset(X_va, label=y_va, feature_name=self._feature_names, reference=dtrain)
@@ -67,6 +75,7 @@ class GBMBaseline:
             "reg_alpha":         self.config.reg_alpha,
             "reg_lambda":        self.config.reg_lambda,
             "verbosity":         -1,
+            "num_threads":       self.config.num_threads,
         }
 
         callbacks = [
@@ -100,8 +109,12 @@ class GBMBaseline:
     def evaluate(self, df: pl.DataFrame, split_name: str) -> dict:
         df_clean = df.filter(pl.col("polyline") != "[]")
         X, _     = extract_gbm_features(df_clean, self.config.grid_resolution)
-        y_pred   = np.clip(self._booster.predict(X), 0.0, None)
         y_true   = df_clean["travel_time_s"].to_numpy()
+        return self.evaluate_xy(X, y_true, split_name)
+
+    def evaluate_xy(self, X: np.ndarray, y_true: np.ndarray, split_name: str) -> dict:
+        """Like `evaluate`, but on a pre-extracted feature matrix (e.g. SUMO features)."""
+        y_pred = np.clip(self._booster.predict(X), 0.0, None)
 
         importances = self._booster.feature_importance(importance_type="gain")
         top10 = sorted(
@@ -111,7 +124,7 @@ class GBMBaseline:
 
         return {
             "split":              split_name,
-            "n_trips":            len(df_clean),
+            "n_trips":            len(y_true),
             "mae_s":              round(mae(y_true, y_pred), 4),
             "rmse_s":             round(rmse(y_true, y_pred), 4),
             "mape_pct":           round(mape(y_true, y_pred), 4),

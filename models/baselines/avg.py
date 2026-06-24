@@ -36,7 +36,10 @@ class AVGBaseline:
 
     def fit(self, train_df: pl.DataFrame) -> None:
         feats = extract_features(train_df, self.config.grid_resolution, self.config.n_time_slots)
+        self.fit_prefeaturized(feats)
 
+    def fit_prefeaturized(self, feats: pl.DataFrame) -> None:
+        """Like `fit`, but `feats` already has origin_cx/cy, dest_cx/cy, hour columns."""
         key_od_hour = ["origin_cx", "origin_cy", "dest_cx", "dest_cy", "hour"]
         key_od      = ["origin_cx", "origin_cy", "dest_cx", "dest_cy"]
 
@@ -57,7 +60,9 @@ class AVGBaseline:
     def _predict_full(self, df: pl.DataFrame) -> dict:
         """Return predictions array plus per-level coverage counts."""
         feats = extract_features(df, self.config.grid_resolution, self.config.n_time_slots)
+        return self._predict_full_prefeaturized(feats)
 
+    def _predict_full_prefeaturized(self, feats: pl.DataFrame) -> dict:
         # Level 1: OD + hour
         joined = feats.join(
             self._lookup_od_hour,
@@ -102,12 +107,19 @@ class AVGBaseline:
 
     def evaluate(self, df: pl.DataFrame, split_name: str) -> dict:
         result   = self._predict_full(df)
-        y_pred   = result["predictions"]
-        y_true   = df["travel_time_s"].to_numpy()
+        return self._score(result, df["travel_time_s"].to_numpy(), split_name)
 
+    def evaluate_prefeaturized(self, feats: pl.DataFrame, split_name: str) -> dict:
+        """Like `evaluate`, but `feats` already has origin_cx/cy, dest_cx/cy, hour columns."""
+        result = self._predict_full_prefeaturized(feats)
+        return self._score(result, feats["travel_time_s"].to_numpy(), split_name)
+
+    @staticmethod
+    def _score(result: dict, y_true: np.ndarray, split_name: str) -> dict:
+        y_pred = result["predictions"]
         return {
             "split":    split_name,
-            "n_trips":  len(df),
+            "n_trips":  len(y_true),
             "mae_s":    round(mae(y_true, y_pred), 4),
             "rmse_s":   round(rmse(y_true, y_pred), 4),
             "mape_pct": round(mape(y_true, y_pred), 4),

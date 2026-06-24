@@ -1,68 +1,117 @@
 \section{Results and Analysis}\label{sec5}
-\noindent Validation results. Tables~\ref{tab:results_overall_bins} and~\ref{tab:mae_rmse_wape} report the performance of all ablation variants. The naive average-time baseline (\texttt{avg}) yields 260.6\,s MAE and 325.1\,s RMSE, with a MAPE of 127.8\%, confirming the task's difficulty.
 
-The \texttt{base\_graph} model, which uses only static road topology and basic vehicle kinematics, reduces MAE to 86.5\,s (66.8\% improvement). Short trips are predicted with 39.2\,s MAE, while medium and long trips remain harder (81.8\,s and 140.3\,s).
+Unless stated otherwise, all numbers reported below follow the evaluation protocol defined in Sect.~\ref{sec:eval-protocol}.
 
-Adding dynamic interaction edges in \texttt{dynamic\_graph} achieves 104.5\,s MAE (59.9\%), weaker than the static-only model. Errors for medium/long trips (95.9\,s and 177.5\,s) indicate that dynamic edges without route features add noise rather than signal.
+\subsection{Ablation Study}\label{sec5:ablation}
 
-The \texttt{route\_aware\_graph} variant delivers strong gains: 58.4\,s MAE overall, with 24.2\,s (short), 54.8\,s (medium), and 97.6\,s (long). Explicitly encoding planned routes and edge demand/occupancy lets the model anticipate congestion along a vehicle's actual path.
-
-Temporal variants further refine performance. \texttt{temporal\_base} achieves 92.6\,s MAE (64.5\%), mainly improving medium trips but struggling on short trips (61.4\,s). \texttt{temporal\_dymanic} improves to 78.8\,s MAE (69.8\%), showing that temporal memory of interaction edges helps even without route features.
-
-The best performance is \texttt{temporal\_route\_aware}, which combines temporal aggregation with explicit route features: 46.2\,s MAE and 107.2\,s RMSE (82.3\% improvement), with balanced per-bin accuracy (24.1\,s short, 38.3\,s medium, 76.9\,s long) and the lowest MAPE (17.9\%).
-
-Equally important is the underlying dataset representation. Unlike prior work that models only road segments or aggregated trajectories, our dataset is structured as a dynamic graph where both junctions and vehicles are nodes. Static road edges encode the persistent infrastructure, while dynamic edges evolve at every snapshot to reflect vehicle--junction and vehicle--vehicle relationships. This design allows the model to jointly learn from the stable backbone of the road network and the transient dynamics of traffic flow, enabling the strong gains observed in route-aware and temporal variants.
+Tables~\ref{tab:ablation_porto} and~\ref{tab:ablation_sumo} report per-variant test-set metrics in the shared protocol range, which supports direct comparison between Porto-G and SUMO. Table~\ref{tab:ablation_sumo_p95} then evaluates the same SUMO variants on the broader p95-filtered SUMO population defined in Sect.~\ref{sec:porto-conversion}. Each row isolates a specific combination of dynamic edges, route features, and GRU temporal context, with component toggles defined in Sect.~\ref{sec:ablation-variants}.
 
 \begin{table}[t]
     \centering
-    \caption{Overall and per-bin validation MAE (seconds) averaged over seeds 42--44 (best epoch per seed). Improvement is relative to the AVG baseline.}
-    \label{tab:results_overall_bins}
-    \begin{tabular}{@{}lccccc@{}}
+    \caption{Ablation study on Porto-G (test set, evaluation protocol, $n{=}106{,}636$ trips). A3--A6 report mean $\pm$ std across seeds 42/43/44. A1--A2 use seed 42 only. \textbf{Bold} = best per column.}
+    \label{tab:ablation_porto}
+    {\footnotesize\setlength{\tabcolsep}{4pt}%
+    \begin{tabular}{@{}llccc@{}}
         \toprule
-        \textbf{Variant} & \textbf{MAE} & \textbf{Short} & \textbf{Medium} & \textbf{Long} & \textbf{Improve vs AVG} \\
+        \textbf{Variant} & \textbf{Components} & \textbf{MAE (s)} & \textbf{RMSE (s)} & \textbf{MAPE (\%)} \\
         \midrule
-        avg                    & 260.63 & 282.20 & 83.56 & 430.67 & 0.0\% \\
-        base\_graph            & 86.46  & 39.20  & 81.79 & 140.27 & 66.8\% \\
-        dynamic\_graph         & 104.51 & 42.65  & 95.99 & 177.54 & 59.9\% \\
-        route\_aware\_graph    & 58.42  & 24.19  & 54.84 & 97.61  & 77.6\% \\
-        temporal\_base         & 92.62  & 61.35  & 83.54 & 135.00 & 64.5\% \\
-        temporal\_dynamic      & 78.79  & 32.04  & 67.58 & 142.14 & 69.8\% \\
-        temporal\_route\_aware  & 46.16  & 24.05  & 38.31 & 76.90  & 82.3\% \\
+        A1 \texttt{base\_graph}            & Static only         & 93.29 & 122.04 & 17.28 \\
+        A2 \texttt{dynamic\_graph}         & +Dyn.\ edges        & 91.76 & 120.63 & 16.88 \\
+        A3 \texttt{route\_aware\_graph}    & +Route+Dyn.\        & 74.81 $\pm$ 0.52 & 100.30 $\pm$ 0.88 & 13.96 \\
+        A4 \texttt{temporal\_base}         & +Temp.\ (GRU)       & 90.00 $\pm$ 0.66 & 118.67 $\pm$ 1.01 & 17.05 \\
+        A5 \texttt{temporal\_dynamic}      & +Temp.+Dyn.\        & 87.99 $\pm$ 0.61 & 107.83 $\pm$ 0.94 & 16.76 \\
+        A6 \texttt{temporal\_route\_aware} & Full model (GRU)    & \textbf{68.05 $\pm$ 0.48} & \textbf{90.01 $\pm$ 0.86} & \textbf{13.20} \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}}%
 \end{table}
 
 \begin{table}[t]
     \centering
-    \caption{Duration binning used throughout (validation split). Thresholds from Fig.~\ref{fig:eta-dist}.}
-    \label{tab:binning}
-    \begin{tabular}{@{}lccc@{}}
+    \caption{Ablation study on SUMO (test set, protocol range, $n{=}103{,}144$ trips). A3--A6 report mean $\pm$ std across seeds 42/43/44. A1--A2 use seed 42 only. \textbf{Bold} = best per column.}
+    \label{tab:ablation_sumo}
+    {\footnotesize\setlength{\tabcolsep}{4pt}%
+    \begin{tabular}{@{}llccc@{}}
         \toprule
-        \textbf{Bin} & \textbf{ETA range (s)} & $\boldsymbol{\tau}$ \textbf{(s)} & \textbf{Count} \\
+        \textbf{Variant} & \textbf{Components} & \textbf{MAE (s)} & \textbf{RMSE (s)} & \textbf{MAPE (\%)} \\
         \midrule
-        Short  & $[0,\,277]$       & 30  & 33{,}227 \\
-        Medium & $(277,\,609]$     & 60  & 34{,}996 \\
-        Long   & $>\,609$          & 120 & 32{,}228 \\
+        A1 \texttt{base\_graph}            & Static only         & 80.10 & 211.86 & 12.03 \\
+        A2 \texttt{dynamic\_graph}         & +Dyn.\ edges        & 74.96 & 135.63 & 11.59 \\
+        A3 \texttt{route\_aware\_graph}    & +Route+Dyn.\        & 66.81 $\pm$ 0.64 & 110.23 $\pm$ 0.93 & 10.06 \\
+        A4 \texttt{temporal\_base}         & +Temp.\ (GRU)       & 76.29 $\pm$ 0.73 & 121.26 $\pm$ 1.08 & 12.05 \\
+        A5 \texttt{temporal\_dynamic}      & +Temp.+Dyn.\        & 64.08 $\pm$ 0.66 & 97.38 $\pm$ 1.01 & 9.76 \\
+        A6 \texttt{temporal\_route\_aware} & Full model (GRU)    & \textbf{54.75 $\pm$ 0.71} & \textbf{82.72 $\pm$ 0.96} & \textbf{8.33} \\
         \bottomrule
-    \end{tabular}
+    \end{tabular}}%
 \end{table}
 
 \begin{table}[t]
     \centering
-    \caption{Overall validation MAE and RMSE (seconds) and MAPE (\%). Best epoch per variant on validation; averaged over seeds 42--44 where available. MAPE values are estimated where missing in logs.}
-    \label{tab:mae_rmse_wape}
-    \begin{tabular}{@{}lccc@{}}
+    \caption{Ablation study on SUMO (test set, p95-filtered population, trip duration $\leq 2{,}587$\,s). A3--A6 report mean $\pm$ std across seeds 42/43/44. A1--A2 use seed 42 only. \textbf{Bold} = best per column.}
+    \label{tab:ablation_sumo_p95}
+    {\footnotesize\setlength{\tabcolsep}{4pt}%
+    \begin{tabular}{@{}llccc@{}}
         \toprule
-        \textbf{Variant} & \textbf{MAE (s)} & \textbf{RMSE (s)} & \textbf{MAPE (\%)} \\
+        \textbf{Variant} & \textbf{Components} & \textbf{MAE (s)} & \textbf{RMSE (s)} & \textbf{MAPE (\%)} \\
         \midrule
-        avg                    & 260.63 & 325.13 & 127.75 \\
-        base\_graph            & 86.46  & 145.08 & 33.70 \\
-        dynamic\_graph         & 104.51 & 157.65 & 40.73 \\
-        route\_aware\_graph    & 58.42  & 106.99 & 22.77 \\
-        temporal\_base         & 92.62  & 155.48 & 26.51 \\
-        temporal\_dynamic      & 78.79  & 127.88 & 30.70 \\
-        temporal\_route\_aware  & 46.16  & 107.15 & 17.99 \\
+        A1 \texttt{base\_graph}            & Static only         & 78.33 & 235.56 & 25.13 \\
+        A2 \texttt{dynamic\_graph}         & +Dyn.\ edges        & 77.56 & 244.34 & 23.54 \\
+        A3 \texttt{route\_aware\_graph}    & +Route+Dyn.\        & 76.22 $\pm$ 1.42 & 218.98 $\pm$ 2.01 & 22.34 \\
+        A4 \texttt{temporal\_base}         & +Temp.\ (GRU)       & 80.38 $\pm$ 1.23 & 232.16 $\pm$ 2.12 & 24.35 \\
+        A5 \texttt{temporal\_dynamic}      & +Temp.+Dyn.\        & 75.81 $\pm$ 1.82 & 219.22 $\pm$ 2.19 & 22.22 \\
+        A6 \texttt{temporal\_route\_aware} & Full model (GRU)    & \textbf{72.44 $\pm$ 1.31} & \textbf{214.50 $\pm$ 2.92} & \textbf{19.71} \\
+        \bottomrule
+    \end{tabular}}%
+\end{table}
+
+\textbf{Route intent is the dominant non-temporal factor on both domains.} Adding explicit route features on top of dynamic edges (A2$\to$A3) delivers the largest single gain among the non-temporal variants under the protocol-range evaluation: Porto-G MAE drops 18.5\% (91.76\,s to 74.81\,s) and SUMO MAE drops 10.9\% (74.96\,s to 66.81\,s). Dynamic interaction edges alone (A1$\to$A2) help less and to a different degree on each domain: only 1.6\% on Porto-G's sparse taxi fleet ($\sim$10--15 active vehicles per snapshot) versus 6.4\% on SUMO's denser traffic mix ($\sim$280 active vehicles per snapshot). GRU temporal aggregation on top of the full route-aware representation (A3$\to$A6) yields a further substantial reduction on both domains: 9.0\% on Porto-G and 18.1\% on SUMO. On the broader p95-filtered SUMO population, the same ordering remains: the full model achieves the lowest MAE at 72.44\,s, compared with 75.81\,s for A5 and 76.22\,s for A3.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.88\linewidth]{figures/dstra_trip_duration_bin_mae.png}
+    \caption{DSTRA-GNN A6 trip-start MAE by duration bin on SUMO p95, SUMO protocol range, and Porto-G.}
+    \label{fig:dstra-duration-bin-mae}
+\end{figure}
+
+Fig.~\ref{fig:dstra-duration-bin-mae} shows that error increases with trip duration across both graph domains. The SUMO p95 curve extends beyond the shared protocol range up to the 2{,}587\,s cutoff, while the SUMO protocol-range and Porto-G curves occupy the common $[315,945]$\,s comparison band.
+
+\subsection{Porto Baseline Comparison}\label{sec5:baselines}
+
+Table~\ref{tab:baselines_porto} compares DSTRA-GNN against a ladder of external baselines on Porto using the protocol defined in Sect.~\ref{sec:eval-protocol}. Trajectory baselines (AVG, LR, GBM, TEMP, DeepTTE, MetaTTE, WDR, STNN) use Porto-T, whose test split is itself restricted to the $[315,945]$\,s protocol range. Graph-native baselines (Route-sum, DCRNN, DSTRA-GNN) use Porto-G. Because the input modality differs, we report all models on the same metrics and label the input format explicitly in the caption.
+
+\begin{table}[t]
+    \centering
+    \caption{Baseline comparison on Porto (test set, evaluation protocol). \emph{Porto-T}: trip-level trajectory input. \emph{Porto-G}: graph snapshot input. All use the same chronological calendar split (test: 2014-05-01 to 2014-07-01). DSTRA-GNN reports mean across seeds 42/43/44 ($\pm$ std for MAE/RMSE: 68.05$\pm$0.48 / 90.01$\pm$0.86). \textbf{Bold} = best per column.}
+    \label{tab:baselines_porto}
+    \begin{tabular}{@{}llcccr@{}}
+        \toprule
+        \textbf{Model} & \textbf{Input} & \textbf{MAE (s)} & \textbf{RMSE (s)} & \textbf{MAPE (\%)} & \textbf{$n$} \\
+        \midrule
+        \multicolumn{6}{@{}l}{\textit{Non-parametric / statistical}} \\
+        AVG (OD-hour)       & Porto-T & 113.29 & 142.54 & 20.83 & 161{,}401 \\
+        Linear Regression   & Porto-T & 107.58 & 133.89 & 19.67 & 161{,}401 \\
+        GBM (LightGBM)      & Porto-T &  86.41 & 113.21 & 15.00 & 161{,}401 \\
+        TEMP                & Porto-T & 113.34 & 148.02 & 19.87 & 161{,}401 \\
+        Route-sum           & Porto-G & 226.15 & 260.42 & 41.02 & 106{,}647 \\
+        \midrule
+        \multicolumn{6}{@{}l}{\textit{Deep learning (trajectory-native)}} \\
+        DeepTTE~\cite{deepTTE2018}     & Porto-T &  68.59 &  90.68 & \textbf{12.13} & 161{,}400 \\
+        MetaTTE~\cite{wang2022metatte} & Porto-T &  69.46 &  91.74 & 12.34 & 161{,}400 \\
+        WDR                 & Porto-T &  72.11 &  94.60 & 12.81 & 161{,}400 \\
+        STNN                & Porto-T &  74.15 &  97.27 & 13.05 & 161{,}400 \\
+        \midrule
+        \multicolumn{6}{@{}l}{\textit{Graph-native spatio-temporal}} \\
+        DCRNN~\cite{dcrnn2018}         & Porto-G & 131.32 & 172.82 & 28.95 & 106{,}647 \\
+        \midrule
+        \multicolumn{6}{@{}l}{\textit{DSTRA-GNN (this work)}} \\
+        A6 (full model)     & Porto-G & \textbf{68.05} & \textbf{90.01} & 13.20 & 106{,}636 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
+\textbf{Non-parametric and tabular baselines.} On Porto, GBM (86.41\,s) is the strongest tabular baseline, comfortably outperforming AVG (113.29\,s), LR (107.58\,s), and TEMP (113.34\,s), while Route-sum (226.15\,s) is the weakest despite having access to explicit route geometry -- likely because per-edge historical speeds on Porto-G are estimated from sparse taxi observations and degrade when any edge is rarely traversed.
+
+\textbf{Deep sequence baselines on Porto.} DeepTTE (68.59\,s) and MetaTTE (69.46\,s) are the strongest non-graph baselines, followed closely by WDR (72.11\,s) and STNN (74.15\,s). All four deep trajectory models are trained on Porto-T with the same chronological split and are reimplemented here to ensure parity. Their advantage over GBM (86.41\,s) shows that learning from the spatial sequence of GPS positions adds value beyond hand-crafted trip features.
+
+\textbf{DCRNN on Porto-G.} DCRNN adapted to the Porto-G road-edge line graph (131.32\,s) performs worse than the tabular and sequence baselines but better than the simple Route-sum heuristic. We attribute this gap to the representation mismatch: DCRNN is designed for densely observed road networks with regular link-level signals, whereas Porto-G is a sparse, single-fleet snapshot dataset with only a small number of active vehicles per snapshot.
+
+\textbf{DSTRA-GNN relative to the baseline ladder.} On Porto, the full model (A6) falls in the same accuracy band as the strongest trajectory-native deep baselines: 68.05\,s MAE and 90.01\,s RMSE on Porto-G, compared with DeepTTE at 68.59\,s/90.68\,s and MetaTTE at 69.46\,s/91.74\,s on Porto-T. DeepTTE retains a marginally lower MAPE (12.13\% vs.\ 13.20\%), so the comparison should be read as close positioning among high-accuracy models rather than a decisive separation. On SUMO, where trajectory-native baselines are not directly applicable, the p95 ablation table shows that DSTRA-GNN's full route-aware temporal configuration is the most accurate graph variant, with 72.44\,s MAE and 214.50\,s RMSE. These results situate DSTRA-GNN among the more accurate models while evaluating a graph-native, route-aware representation rather than a trajectory-native sequence encoder.

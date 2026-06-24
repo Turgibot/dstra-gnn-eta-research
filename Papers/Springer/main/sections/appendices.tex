@@ -2,20 +2,24 @@
 
 \section{Explanation of Extended Material}\label{secA1}
 
-This extended version includes at least 30\% new material compared to the foundation paper ``Estimating Accurate Traffic Time by Smart Simulative Route Predictions''~\cite{SmartSimulativeRoute2025}, which was submitted to the I3E 2025 conference. The SmartSimulativeRoute paper laid the methodological groundwork for route-aware traffic modeling by introducing the concept of incorporating future traffic estimations and explicit route information into ETA prediction. That work represented traffic as a graph with junction vertices and road segment edges, computing paths that minimize both physical distance and predicted traffic congestion using a Total Edge Weight (TEW) metric.
+This extended version includes at least 30\% new material compared to the foundation paper ``Estimating Accurate Traffic Time by Smart Simulative Route Predictions''~\cite{SmartSimulativeRoute2025}, submitted to the I3E 2025 conference. That paper introduced route-aware traffic modeling via a static graph of junction vertices and road-segment edges, computing paths that minimize a Total Edge Weight (TEW) combining physical distance and predicted congestion. The present work replaces this heuristic simulation with a learned dynamic graph neural network. Table~\ref{tab:extension-summary} summarizes the additions by section.
 
-The present work significantly extends this foundation by introducing a dynamic graph neural network architecture that learns spatio-temporal patterns from traffic data, rather than relying solely on heuristic simulation. The following sections detail the major additions and extensions:
+\begin{table}[h]
+\centering
+\caption{New material added relative to the foundation paper~\cite{SmartSimulativeRoute2025}, by section.}
+\label{tab:extension-summary}
+\begin{tabular}{@{}lp{6.3cm}r@{}}
+\toprule
+\textbf{Section} & \textbf{Main additions} & \textbf{New material} \\
+\midrule
+Related Work (\ref{sec2}) & Subsections on classical pathfinding, non-graph ETA prediction (DeepTTE, MetaTTE, STAD, STANN), graph-based models without route awareness (DCRNN, ST-GCN, Graph WaveNet), and route-aware production models (Google Maps, ConSTGAT, DuETA), with a comparison table and explicit positioning vs.\ the foundation paper & $\sim$15\% \\
+Methodology (\ref{sec3}) & Dynamic graph with vehicle/interaction nodes and edges, route intent as learned edge-ID embeddings (vs.\ TEW path costs), temporal windowing, full model/training configuration & $\sim$10\% \\
+Experimental Evaluation (\ref{sec4}) & Dataset statistics, experimental setup, and ablation variants for the learned model evaluated on dynamic graph snapshots & --- \\
+Discussion (\ref{sec6}) & Deeper result analysis, comparison with state-of-the-art baselines, and discussion of how the neural approach improves on the heuristic TEW method & $\sim$5\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\textbf{Expanded Related Work Section:} The Related Work section (Section~\ref{sec2}) has been significantly expanded with additional subsections covering classical pathfinding algorithms, learning-based ETA methods, spatio-temporal graph neural networks, and state-of-the-art production models. This includes detailed comparisons with recent methods such as DuETA, STANN, and ConSTGAT, providing approximately 15\% additional content. The section now explicitly positions our work relative to the SmartSimulativeRoute foundation, explaining how we advance from simulation-driven heuristics to data-driven neural learning.
-
-\textbf{Enhanced Methodology Details:} The Methodology section (Section~\ref{sec3}) includes expanded descriptions of the dynamic graph representation, with more detailed explanations of edge construction, route intent encoding, and temporal windowing. While the SmartSimulativeRoute paper introduced the concept of route awareness through explicit path computation, this work extends it by encoding remaining route sequences as learnable embeddings and processing them through graph neural network layers. Additional technical details about model configuration, loss functions, and training protocols have been added, contributing approximately 10\% new material. The dynamic graph structure, which includes vehicle nodes and interaction edges, represents a significant advancement over the static graph representation used in the foundation paper.
-
-\textbf{Extended Discussion Section:} The Discussion section (Section~\ref{sec6}) has been substantially expanded to include deeper analysis of the results, comparisons with state-of-the-art methods, and detailed discussion of the dataset formulation and its implications. This adds approximately 5\% new content focusing on the broader impact and significance of the work. The discussion now explicitly addresses how the neural network approach improves upon the heuristic-based method from SmartSimulativeRoute, particularly in handling complex traffic interactions and learning temporal patterns.
-
-\textbf{Additional Experimental Details:} The Experimental Evaluation section (Section~\ref{sec4}) includes more comprehensive dataset statistics, expanded descriptions of experimental setup, and additional analysis of ablation variants. This contributes to the overall extension of the paper. The experimental framework itself represents a significant extension, as it evaluates the learned neural model on dynamic graph snapshots rather than the static path evaluation used in the foundation paper.
-
-\textbf{Key Advancements Over Foundation Paper:} The most significant extension is the transition from heuristic-based route evaluation to learned neural representations. While SmartSimulativeRoute computed TEW-based path costs using predefined metrics, this work learns optimal feature representations through graph neural network layers. Additionally, the introduction of temporal learning from historical road edge states represents entirely new functionality not present in the foundation paper. The explicit encoding of route intent as learnable embeddings, rather than as path cost factors, enables the model to capture complex spatio-temporal dependencies that heuristic methods cannot represent.
-
-The combination of these additions ensures that the extended version contains at least 30\% new material while building directly upon the route awareness foundation established in SmartSimulativeRoute~\cite{SmartSimulativeRoute2025}. All new material is clearly integrated into the existing structure and provides additional depth and context to the research, demonstrating how neural learning advances the route-aware paradigm introduced in the foundation work.
+The most significant advance is the shift from heuristic TEW-based path costs to learned feature representations: route intent is now encoded as edge-ID embeddings processed by graph neural network layers, and temporal context is learned from historical road-edge states -- both entirely new relative to the foundation paper, which used neither.
 
 \end{appendices}

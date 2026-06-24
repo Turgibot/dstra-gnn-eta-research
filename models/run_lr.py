@@ -13,36 +13,67 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from models.baselines.lr import LRBaseline, LRConfig
 from models.utils.data import load_split
+from models.utils.sumo_features import build_sumo_trip_table, extract_sumo_lr_features
 
 _REPO_ROOT  = Path(__file__).resolve().parent.parent
 _SPLITS_DIR = _REPO_ROOT / "datasets/real/porto_taxi_traj/processed/splits"
 _OUTPUT_DIR = _REPO_ROOT / "results/lr"
+_SUMO_DIR   = _REPO_ROOT / "datasets/simulated/sumo"
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="LR baseline — geometry + temporal features")
-    p.add_argument("--splits-dir", type=Path, default=_SPLITS_DIR)
-    p.add_argument("--output-dir", type=Path, default=_OUTPUT_DIR)
-    return p.parse_args()
+    p = argparse.ArgumentParser(description="LR baseline — geometry + temporal features (Porto-T / SUMO)")
+    p.add_argument("--dataset",      choices=["porto", "sumo"], default="porto")
+    p.add_argument("--splits-dir",   type=Path, default=_SPLITS_DIR)
+    p.add_argument("--sumo-dir",     type=Path, default=_SUMO_DIR)
+    p.add_argument("--output-dir",   type=Path, default=None)
+    p.add_argument("--train-stride", type=int,  default=10,
+                   help="SUMO only: subsample train label files")
+    p.add_argument("--eval-stride",  type=int,  default=1,
+                   help="SUMO only: subsample val/test label files")
+    args = p.parse_args()
+    if args.output_dir is None:
+        args.output_dir = _REPO_ROOT / ("results/lr_sumo" if args.dataset == "sumo" else "results/lr")
+    return args
 
 
 def main() -> None:
     args = _parse_args()
-
-    print("Loading splits ...")
-    train_df = load_split(args.splits_dir, "train")
-    val_df   = load_split(args.splits_dir, "val")
-    test_df  = load_split(args.splits_dir, "test")
-    print(f"  train {len(train_df):,}  val {len(val_df):,}  test {len(test_df):,}")
-
     model = LRBaseline()
 
-    print("\nFitting ...")
-    model.fit(train_df)
+    if args.dataset == "sumo":
+        print("Building SUMO trip tables ...")
+        train_trips = build_sumo_trip_table(args.sumo_dir / "train", stride=args.train_stride)
+        val_trips   = build_sumo_trip_table(args.sumo_dir / "val",   stride=args.eval_stride)
+        test_trips  = build_sumo_trip_table(args.sumo_dir / "test",  stride=args.eval_stride)
+        print(f"  train {len(train_trips):,}  val {len(val_trips):,}  test {len(test_trips):,}")
 
-    print("Evaluating ...")
-    val_metrics  = model.evaluate(val_df,  "val")
-    test_metrics = model.evaluate(test_df, "test")
+        X_tr, names = extract_sumo_lr_features(train_trips)
+        y_tr = train_trips["travel_time_s"].to_numpy()
+        X_va, _ = extract_sumo_lr_features(val_trips)
+        y_va = val_trips["travel_time_s"].to_numpy()
+        X_te, _ = extract_sumo_lr_features(test_trips)
+        y_te = test_trips["travel_time_s"].to_numpy()
+
+        print("\nFitting ...")
+        model.fit_xy(X_tr, y_tr, names)
+
+        print("Evaluating ...")
+        val_metrics  = model.evaluate_xy(X_va, y_va, "val")
+        test_metrics = model.evaluate_xy(X_te, y_te, "test")
+    else:
+        print("Loading splits ...")
+        train_df = load_split(args.splits_dir, "train")
+        val_df   = load_split(args.splits_dir, "val")
+        test_df  = load_split(args.splits_dir, "test")
+        print(f"  train {len(train_df):,}  val {len(val_df):,}  test {len(test_df):,}")
+
+        print("\nFitting ...")
+        model.fit(train_df)
+
+        print("Evaluating ...")
+        val_metrics  = model.evaluate(val_df,  "val")
+        test_metrics = model.evaluate(test_df, "test")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     model.save(args.output_dir / "model")

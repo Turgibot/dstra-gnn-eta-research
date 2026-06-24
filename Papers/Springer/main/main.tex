@@ -31,8 +31,11 @@
 \usepackage{url}%
 \usepackage{subfig}%
 \usepackage{adjustbox}%
+\usepackage{placeins}%
 \usepackage{tikz}%
 \usetikzlibrary{arrows.meta, positioning, fit, shapes.multipart, calc, backgrounds}
+\usepackage{algorithm}%
+\usepackage{algpseudocode}%
 
 \raggedbottom
 
@@ -67,7 +70,7 @@
 \begin{figure*}[t]
     \centering
     \includegraphics[width=0.80\textwidth]{figures/rush_hour.png}
-    \caption{Afternoon rush-hour snapshot spanning the network. Static junction nodes (light blue) and static road edges (gray) form the backbone; dynamic vehicle nodes (green) and traversal edges (orange arrows) reveal congestion corridors and high-flow funnels. Zones: A/B urban grids with dense signals and short links; C suburban ring with longer arterials and smoother flow; H connector hub that funnels inter-zone traffic and creates gateway bottlenecks.}\label{fig:rush-hour-intro}
+    \caption{Afternoon rush-hour snapshot spanning the network. Static junction nodes (light blue) and static road edges (gray) form the backbone; dynamic vehicle nodes (green) and dynamic edges (orange arrows) reveal congestion corridors and high-flow funnels.}\label{fig:rush-hour-intro}
 \end{figure*}
 
 \input{sections/introduction}
@@ -87,8 +90,6 @@
 \backmatter
 
 \input{sections/declarations}
-
-\input{sections/appendices}
 
 \bibliography{references}
 

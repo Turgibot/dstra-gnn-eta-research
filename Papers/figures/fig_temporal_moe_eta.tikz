@@ -39,7 +39,7 @@
 
 % --- Temporal module (lane 1) ---
 \node[op, below=15mm of snapdeck, minimum width=70mm] (temp)
-  {Temporal module: Transformer \\ \footnotesize edge-level dynamic road features };
+  {Temporal module: GRU \\ \footnotesize edge-level dynamic road features };
 
 % --- LANE 2: last snapshot -> encoder -> vehicles ---
 \node[block, right=38mm of snapdeck, minimum width=42mm, minimum height=12mm] (lastsnap)
@@ -51,7 +51,7 @@
 % --- Route encoder (optional, Full) ---
 \node[opt, right=22mm of vehsel, align=left, minimum width=55mm] (routeenc)
   {Route Encoder\\ \footnotesize edge-id embedding + mean pooling\\
-   \footnotesize inputs: $vehicle\_route\_left$, $vehicle\_route\_left\_splits$};
+   \footnotesize input: $vehicle\_route\_left$ (remaining edge-ID sequence)};
 
 % --- Fusion / Router / Experts / Output ---
 \node[op,   below=of vehsel,  minimum width=70mm] (fusion)  {Fusion MLP};
@@ -71,7 +71,7 @@
 \node[block, below=18mm of expertsrow, minimum width=70mm] (pred) {Per-vehicle ETA};
 
 % --- Connections ---
-% Lane 1 (temporal): window -> transformer -> fusion (context)
+% Lane 1 (temporal): window -> GRU -> fusion (context)
 \draw[->] (snapdeck) -- (temp);
 \draw[->] (temp.south) |- (fusion.west);
 

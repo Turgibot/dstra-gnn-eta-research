@@ -11,7 +11,7 @@
 
 % Temporal lane blocks
 \node[block, right=16mm of laneT.west] (win) {Window $t{-}H{+}1\ldots t{-}1$ \\ static-road edges};
-\node[op, right=8mm of win] (tr) {Transformer (edge-level) \\ PE, $N$ layers};
+\node[op, right=8mm of win] (tr) {GRU (edge-level) \\ hidden $d{=}128$};
 \node[block, right=8mm of tr] (ctx) {Project + mean over edges \\ Graph context};
 
 % Spatial lane blocks

@@ -1,6 +1,9 @@
 \section{Methodology}\label{sec3}
 
-\subsection{Dynamic Graph Representation}
+\subsection{Overview}\label{sec:methodology-overview}
+This section first introduces the dynamic, multi-relational graph representation that the rest of the paper builds on, then validates that the representation generalizes beyond simulation. A model trained only on simulated traffic cannot demonstrate that its representation transfers to data outside its own generative assumptions, so real-world validation requires a second, independent data source. Among public traffic datasets, only Porto taxi trajectories~\cite{moreira2013porto} combine GPS sampling dense enough for reliable map-matching with the per-vehicle trip resolution that route-awareness requires. Aggregate sensor datasets such as METR-LA and PEMS-BAY record neither individual routes nor vehicle identity. From this single raw source, we build two comparable datasets, detailed over the next two subsections: Porto-T, a filtered trip-level trajectory dataset used to evaluate trajectory-native baselines, and Porto-G, its graph-converted counterpart, sharing the same representation. Alongside these, we use a third, simulation-derived dataset built with SUMO~\cite{SUMO2018}: because the real-world conversion is bottlenecked by one taxi fleet's coverage of one city and by map-matching error, SUMO supplies a larger, denser dynamic-graph corpus with exact ground-truth topology and routes, free of map-matching noise, serving as our primary testbed for model development and ablations. With SUMO and Porto-G sharing one schema, the remainder of this section defines the prediction problem and presents our model, DSTRA-GNN, which fuses the graph representation with temporal and route context through a Mixture-of-Experts head and is trained identically on both datasets to predict per-vehicle ETA.
+
+\subsection{Route-Aware Dynamic Traffic Graph Representation}\label{sec:dynamic-graph}
 We represent the transportation system at snapshot time $t$ as a directed multi-relational graph
 \begin{equation}
 G_t = \big(V_t, E_t, \{A_t^{(\rho)}, W_t^{(\rho)}\}_{\rho\in\mathcal{R}}\big),
@@ -20,8 +23,8 @@ where:
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.8\linewidth]{figures/dynamic_nodes_edges.png}
-    \caption{Dynamic, multi-relational traffic graph: static junction nodes (labeled A--D) and road edges (solid gray) with dynamic vehicle nodes (hollow green circles) and interaction edges (blue dashed).}\label{fig:dyn-graph}
+    \resizebox{0.95\linewidth}{!}{\input{figures/fig_dynamic_graph.tikz}}
+    \caption{Dynamic, multi-relational traffic graph at snapshot $t$. Junction nodes $V^j$ (black squares) connect via static road edges (solid). Vehicle nodes $V_t^v$ (green circles) on each segment form a position-ordered chain linked by interaction edges (red dotted, weight $\omega(d_{k,k+1})$). Only the chain's head and tail vehicle attach to a junction, via a traversal edge (orange dashed).}\label{fig:dyn-graph}
 \end{figure}
 
 % Compact components figure: encoder, route encoder, router/MoE
@@ -30,97 +33,195 @@ where:
     \subfloat[Graph encoder (last snapshot)]{\resizebox{0.85\columnwidth}{!}{\input{figures/fig_encoder.tikz}}}\\[2mm]
     \subfloat[Route encoder (vehicle intent)]{\resizebox{0.85\columnwidth}{!}{\input{figures/fig_route_encoder.tikz}}}\\[2mm]
     \subfloat[Router and Mixture-of-Experts]{\resizebox{0.85\columnwidth}{!}{\input{figures/fig_router_moe.tikz}}}
-    \caption{Key components: (a) two-layer GATv2 with edge features; (b) route intent via edge-ID embeddings and mean pooling; (c) sparse Top-$k=2$ routing over six experts with load balancing.}\label{fig:components}
+    \caption{Key components: (a) two-layer GATv2 with edge features. (b) route intent via edge-ID embeddings and mean pooling. (c) sparse Top-$k=2$ routing over six experts with load balancing.}\label{fig:components}
 \end{figure}
 
 We define three relation types:
 \begin{enumerate}
     \item \textbf{Road edges ($\rho=\text{road}$):} For adjacent junctions $(u,v)$ with legal direction $u\!\to\!v$, we add $(u,v)\in E_t^{(\text{road})}$, encoding static road topology.
-    \item \textbf{Traversal edges ($\rho=\text{trav}$):} If vehicle $v_i^t$ occupies segment $(a,b)$, we add $(a,v_i^t)$ and $(v_i^t,b)$, linking the vehicle to its upstream and downstream junctions.
-    \item \textbf{Interaction edges ($\rho=\text{inter}$):} For vehicles $v_i^t,v_j^t$ on the same segment with spacing $d_{ij}(t)\le\varepsilon$ and aligned headings, we add $(v_i^t,v_j^t)$ weighted by $\omega(d_{ij}(t)) = e^{-d_{ij}(t)/\lambda}$.
+    \item \textbf{Traversal edges ($\rho=\text{trav}$):} For each occupied segment $(a,b)$, order the vehicles currently on it by position from $a$ to $b$ as $v_{(1)}^t,\dots,v_{(n)}^t$. We add only $(a, v_{(1)}^t)$ and $(v_{(n)}^t, b)$, linking the segment's upstream and downstream junctions to its head and tail vehicle. Interior vehicles $v_{(2)}^t,\dots,v_{(n-1)}^t$ receive no direct junction edge.
+    \item \textbf{Interaction edges ($\rho=\text{inter}$):} Consecutive vehicles on the same segment are chained: we add $(v_{(k)}^t, v_{(k+1)}^t)$ for $k=1,\dots,n-1$, weighted by $\omega(d_{k,k+1}(t)) = e^{-d_{k,k+1}(t)/\lambda}$, where $d_{k,k+1}(t)$ is the spacing between consecutive vehicles. A segment with a single vehicle ($n{=}1$) has no interaction edges, and that vehicle is both head and tail.
 \end{enumerate}
 
-\paragraph{Dynamic edge construction.}
-In implementation, vehicles on each road segment are ordered by their normalized position along the edge. We then create a short chain per segment: a junction$\to$first-vehicle edge (type 1), vehicle$\to$vehicle links along the ordered list (type 3), and last-vehicle$\to$junction (type 2). These dynamic edges sit on top of the static road graph (type 0).
+\subsubsection{Dynamic Edge Construction}
+Static road edges (type 1) already exist in the topology and require no construction. For each road segment, we identify the vehicles currently traveling on it and sort them by distance from the segment's source to destination junction. We connect the source junction to the first (nearest) vehicle and the last (farthest) vehicle to the destination junction with traversal edges (type 2), and connect each vehicle to the next vehicle in sorted order with interaction edges (type 3).
 
-Each node and edge carries feature vectors. Nodes use 28 features per snapshot (junction/vehicle type, kinematics, temporal encodings, zone one-hot, coordinates, current-edge attributes, demand/occupancy surrogates, and junction type). Edges use 7 features (average speed, lanes one-hot, length, demand, occupancy). Average speed, demand, and occupancy are updated per snapshot from data; vehicle features at indices for current-edge demand/occupancy are filled from the corresponding edge attributes.
+\subsubsection{Node and Edge Features}
+Each node and edge type is reduced to a compact engineered feature vector for the encoder, listed in Table~\ref{tab:node-edge-features}. SUMO includes a zone one-hot ($n_{\mathrm{zone}}{=}4$). Porto-G has no zone annotations, so it omits it. The complete raw dataset schema, from which these features are engineered, is released with the SUMO~\cite{tordjman2026sumokaggle} and Porto-G~\cite{tordjman2026portokaggle} datasets on Kaggle.
 
-\paragraph{Route intent.}
-In addition to graph-based relations, each vehicle node includes a feature called \texttt{vehicle\_route\_left}, which encodes the sequence of upcoming edges along its pre-computed source--destination path. Construction: for each trip we compute a static shortest path over $E^{\mathrm{road}}$ and record its ordered edge-ID list. At time $t$, we locate the vehicle's current edge within this list and take the suffix from the next edge to the destination. Indices are the canonical 0-based edge IDs shared across the dataset (vocabulary size 1{,}294). This sequence is summarized by a Route Encoder (edge-ID embedding + mean pooling) and used in fusion.
+\begin{table}[t]
+    \centering
+    \caption{Node and edge features used by the graph encoder, with feature-vector dimension per dataset.}\label{tab:node-edge-features}
+    \begin{tabular}{@{}lp{6cm}cc@{}}
+        \toprule
+        \textbf{Type} & \textbf{Features} & \textbf{SUMO} & \textbf{Porto-G} \\
+        \midrule
+        Junction  & position $(x,y)$, type one-hot (priority / traffic-light / internal), normalized degree, zone one-hot & 10 & 6 \\
+        Vehicle   & type one-hot (bus / passenger / truck), speed, acceleration, current \& destination position, trip progress, route length left, time-of-day \& day-of-week (sin/cos), current-edge demand / occupancy / lane count, zone one-hot & 22 & 18 \\
+        Road edge & length, speed limit, lane count (static), avg.\ speed, density, demand, occupancy (dynamic) & 7 & 7 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Route Intent}
+In addition to graph-based relations, each vehicle node carries a feature called \texttt{vehicle\_route\_left}: the ordered sequence of edge IDs remaining along its pre-computed source--destination path, from the vehicle's current edge (exclusive) to its destination. At trip start, we compute a single shortest path over $E^{\mathrm{road}}$ using fixed, pre-traffic edge costs and record its ordered edge-ID list. At snapshot $t$, we locate the vehicle's current edge within this list and take the suffix following it, which shrinks monotonically as the vehicle progresses. The sequence is summarized by the Route Encoder, shown in Fig.~\ref{fig:components}b (edge-ID embedding with mean pooling), and concatenated into the fused vehicle representation. No other route-derived input is used.
+
+\subsection{Dataset Construction and Preparation}\label{sec:porto-conversion}
+
+\subsubsection{Simulated Traffic Dataset Generation}
+The SUMO dataset is built from a synthetic road network rather than an imported city map: a layout designed to resemble a real city, combining two dense urban grids, a suburban ring, and a faster connector zone, visible in Fig.~\ref{fig:rush-hour-intro}. It is generated using a friendly desktop tool we developed for this purpose, built around SUMO and TraCI~\cite{SUMO2018,sumo_data_generator}, which makes it straightforward to configure simulation behavior, validate zone and landmark layout, and optionally inject random untracked trips as robustness noise. Although its road network is considerably smaller than Porto-G's, the simulation produces much denser traffic, with far more vehicles active per snapshot, as Table~\ref{tab:dataset-stats} shows.
+
+After generation, we remove the longest 5\% of SUMO trips by trip-start duration, using the 95th-percentile cutoff of 2{,}587\,s (43.1\,min). This removes a rare simulator tail of very long trips whose durations are disproportionate to their route lengths and would otherwise dominate aggregate error metrics, while retaining about 94.9\% of SUMO vehicles for training and evaluation. This p95-filtered SUMO corpus is the SUMO dataset used in all reported results.
+
+\subsubsection{Porto-T: Baseline Trajectory Dataset}
+We construct Porto-T by filtering the raw Porto taxi dataset~\cite{moreira2013porto}, which spans the complete range of trip durations and distances with no filtering applied, through the following rules:
+\begin{enumerate}
+    \item \textbf{Rule 1 (duration/distance):} total duration in $[315,945]$\,s and total distance in $[1{,}760,7{,}320]$\,m.
+    \item \textbf{Rule 2 (minimum points):} at least two GPS points.
+    \item \textbf{Rule 3 (positive travel time):} total travel time strictly positive.
+    \item \textbf{Rule 4 (plausible GPS jumps):} no inter-point jump implying a speed above 200\,km/h.
+\end{enumerate}
+Rules 1--3 are adapted from Table III of the MetaTTE Porto protocol~\cite{wang2022metatte}, so that Porto-T supports a direct comparison of performance against MetaTTE's reported baselines. Rule 4 is our own addition, outside that protocol: without it, trips with corrupted or sensor-glitch GPS traces remain in the data with no physically valid path for a model to learn from, so we remove them. Rule 4 alone rejects 12,659 of the 900,963 trips otherwise passing Rules 1--3 (1.4\%). The result, Porto-T, is the trip-level dataset used to evaluate trajectory-native baselines, defined in Sect.~\ref{sec:baselines}. We split it into train/validation/test using the same MetaTTE calendar date ranges used throughout this paper, given in Sect.~\ref{sec:porto-dataset}.
+
+\subsubsection{Trajectory to Routes Conversion}
+Converting a Porto-T trajectory into the graph representation begins by matching its raw GPS polyline to a route over the road network. We perform this conversion with the same desktop tool used to generate the SUMO dataset~\cite{sumo_data_generator}. Because the full Porto-G road network is far larger than any single trip's footprint, we limit the match search for a polyline $P=(p_1,\ldots,p_m)$ to a subnetwork rather than the full city graph: we build a bounding box $B$ around $P$ and compute only over $N_{\mathrm{bb}}=(V_{\mathrm{bb}},E_{\mathrm{bb}})$, the subgraph of road edges intersecting $B$ together with their endpoint junctions. A \emph{scoring pass}, applied to every segment of the polyline as described in Algorithm~\ref{alg:route-edge-weights}, assigns every edge in $E_{\mathrm{bb}}$ a coarse tier: edges whose heading differs from the segment heading by more than $\pi/9$ are discarded, and the rest are ranked by a weighted combination of heading gap and distance from the segment's endpoints to the edge. The top-$k$ ranked edges per segment become primary candidates (tier 1), the next $j$ become secondary (tier 10), and edges never selected by any segment keep tier 1000. A \emph{routing pass}, described in Algorithm~\ref{alg:route-astar}, then finds the best matching route by running A* search once from each of the $k$ primary candidate edges of the first segment, with edge cost weighted by tier and the Euclidean distance to the trip's endpoint as the heuristic, stopping as soon as any run reaches a primary candidate of the last segment. The cheapest of these runs is the matched route, and GPS samples are projected onto it to fix each vehicle's position at every snapshot. Fig.~\ref{fig:route-matching} shows the bounding box and the resulting matched route for a sample trip.
+
+\begin{algorithm}[t]
+\caption{Edge-weight scoring pass for a GPS polyline}
+\label{alg:route-edge-weights}
+\begin{algorithmic}[1]
+\Require Polyline $P=(p_1,\ldots,p_m)$; bounding-box subnetwork $N_{\mathrm{bb}}=(V_{\mathrm{bb}},E_{\mathrm{bb}})$ with edge headings $\psi_e$; integers $k,j\ge1$; angle threshold $\theta_{\max}=\pi/9$; trade-off $\lambda>0$.
+\Ensure Tier $w(e)\in\{1,10,1000\}$ for every $e\in E_{\mathrm{bb}}$ (lower is better).
+\State $w(e)\gets 1000$ for all $e\in E_{\mathrm{bb}}$
+\For{each segment $s_i=(p_i,p_{i+1})$, $i=1,\ldots,m-1$}
+    \State $\phi_i \gets$ heading of $s_i$; \quad $\mathcal{C}\gets\emptyset$
+    \For{each edge $e\in E_{\mathrm{bb}}$ with heading gap $\delta_e=|\phi_i-\psi_e|\le\theta_{\max}$}
+        \State $r_e \gets \lambda\delta_e + \tfrac{1}{2}\big(d(p_i,e)+d(p_{i+1},e)\big)$; add $e$ to $\mathcal{C}$
+    \EndFor
+    \State Sort $\mathcal{C}$ by increasing $r_e$; let $\mathrm{Top}_i$ be the first $k$ edges, $\mathrm{Sec}_i$ the next $j$
+    \State $w(e)\gets 1$ for $e\in\mathrm{Top}_i$; \quad $w(e)\gets\min(w(e),10)$ for $e\in\mathrm{Sec}_i$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[t]
+\caption{Route extraction by multi-start A$^\ast$}
+\label{alg:route-astar}
+\begin{algorithmic}[1]
+\Require $N_{\mathrm{bb}}$ with tiers $w(e)$; primary sets $\mathrm{Top}_1,\mathrm{Top}_{m-1}$ from Algorithm~\ref{alg:route-edge-weights}; trip endpoint $p_m$.
+\Ensure Lowest-cost route among $k$ multi-start runs.
+\State Goal set $G \gets \mathrm{Top}_{m-1}$
+\For{each start edge $e\in \mathrm{Top}_1$}
+    \State Run A$^\ast$ from $e$ with cost $c(e')=w(e')\cdot\mathrm{len}(e')$ and heuristic $h=$ Euclidean distance to $p_m$, stopping as soon as the search reaches $G$
+\EndFor
+\State \Return the cheapest of the $k$ resulting routes
+\end{algorithmic}
+\end{algorithm}
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/bb.png}
+    \caption{Route matching on the road network. The bounding box, the roads and junctions it restricts the search to (burgundy), the raw GPS polyline (light blue, numbered samples), and the final matched route (dark) are marked, with orange stars showing the GPS points projected onto it.}\label{fig:route-matching}
+\end{figure*}
+
+\subsubsection{Porto-G: Graph Dataset Construction and Validation}
+Once route matching is applied to every Porto-T trajectory, each matched route is aggregated chronologically into ordered 30-second snapshots, using interpolation to compute each vehicle's current speed and to update the dynamic traffic state on each edge. Conversion succeeds for only around 75\% of trajectories, since a trajectory may fail to map-match onto the road network. A statistical comparison of the converted population against Porto-T's duration distribution showed it skewed toward shorter trips, so we removed this skew with a stratified resampling step that matches the converted population's duration histogram to Porto-T's bucket by bucket, as Fig.~\ref{fig:porto-g-vs-t}a shows. This duration-matched population is the Porto-G dataset used throughout this paper, detailed in Table~\ref{tab:dataset-stats}. The resulting distance distribution still favors shorter trips than Porto-T's even after duration-matching, as Fig.~\ref{fig:porto-g-vs-t}b shows. This reflects \texttt{route\_length} being the road-network shortest path rather than the raw GPS polyline length Porto-T uses. The shift widens Porto-G's distance range rather than narrowing it: the full range of Porto-T's distances remains represented within Porto-G, just with added density toward shorter trips.
+
+\begin{figure}[t]
+    \centering
+    \subfloat[Trip duration]{\includegraphics[width=0.48\linewidth]{figures/porto_g_vs_porto_t_duration.png}}\hfill
+    \subfloat[Trip distance]{\includegraphics[width=0.48\linewidth]{figures/porto_g_vs_porto_t_distance.png}}
+    \caption{Duration-matched Porto-G vs.\ Porto-T density (KDE) for trip duration (a) and distance (b), with the eval band $[315,945]$\,s / $[1{,}760,7{,}320]$\,m shaded. The duration distributions overlap closely within the band by construction, as Table~\ref{tab:dataset-stats} confirms. The distance offset in (b) reflects the shortest-path-route vs.\ GPS-polyline measurement difference, not a sampling artifact.}\label{fig:porto-g-vs-t}
+\end{figure}
+
+The resulting dataset, Porto-G, therefore exposes the same $(V_t, E_t, \{A_t^{(\rho)}\}_\rho)$ graph structure, node/edge feature schema, and \texttt{vehicle\_route\_left} convention, so no changes to the model code, training loop, or evaluation metrics are required. Porto-G inherits Porto-T's chronological train/validation/test assignment after conversion, so every graph snapshot and trip label remains in the same calendar split as its source trajectory.
+
+\subsection{Leakage Considerations}\label{sec:leakage}
+This section considers two potential sources of information leakage: (i) whether the edge weights used to compute \texttt{vehicle\_route\_left} via shortest-path search reflect information unavailable at deployment time, and (ii) whether any feature counts future routing demand.
+
+\textbf{Route edge weights.} For both datasets, each vehicle's route is computed once, statically, and independently of current or historical traffic, never as a traffic-conditioned or historical average. For SUMO, the route is computed once per trip using TraCI's Dijkstra implementation~\cite{SUMO2018,dijkstra1959}, weighting each edge by its length divided by its speed limit. For Porto-G, the route is the map-matched path of the vehicle's own recorded GPS trajectory, with no linkage to any other hidden feature.
+
+\textbf{Edge demand.} At each snapshot, the road-edge feature \texttt{edge\_demand} is computed by adding one to an edge's count for every currently active vehicle whose remaining route (\texttt{vehicle\_route\_left}) includes that edge, then normalizing the result. Because it only counts vehicles already present in the current snapshot and their already-fixed remaining plans, it reflects current demand at the time it is observed, not a forecast of future demand, so it does not leak information about routing decisions that have not yet occurred.
 
 \subsection{Temporal Windowing}
 ETA prediction requires reasoning over temporal dynamics. We construct a window of $H$ consecutive snapshots:
 \begin{equation}
 \mathcal{G}_{t-H+1:t} = \{G_\tau\}_{\tau=t-H+1}^t,
 \end{equation}
-where $H$ is configurable (default $H{=}30$ in our experiments, with 30-second spacing). The prediction target is the ETA of vehicles present in the final snapshot $G_t$.
+where $H$ is configurable. Consecutive training windows are generated by sliding this window forward through the dataset, with a configurable overlap controlling how many snapshots successive windows share. The prediction target is the ETA of vehicles present in the final snapshot $G_t$.
 
 \subsection{Problem Statement}
 Given a temporal window of dynamic graphs $\mathcal{G}_{t-H+1:t}=\{G_{\tau}\}_{\tau=t-H+1}^{t}$, where each snapshot $G_{\tau}$ contains static junction nodes $V^{j}$, dynamic vehicle nodes $V^{v}_{\tau}$, static road edges, and time-varying interaction edges, the goal is to predict per-vehicle ETAs at the final snapshot $t^*{=}t$. Let $\mathcal{V}_t = V^{v}_{t}$ denote vehicles present at time $t$. We learn a function $f_{\theta}$ that maps
 \begin{equation}
-f_{\theta}\big(\mathcal{G}_{t-H+1:t},\;\texttt{route\_left}\big) \;\to\; \hat{\mathbf{y}}_t \in \mathbb{R}^{|\mathcal{V}_t|},
+f_{\theta}\big(\mathcal{G}_{t-H+1:t},\;\texttt{route\_left}_t\big) \;\to\; \hat{\mathbf{y}}_t \in \mathbb{R}^{|\mathcal{V}_t|},
 \end{equation}
-where $\hat{\mathbf{y}}_t[i]$ is the ETA for vehicle $i\in\mathcal{V}_t$. Training minimizes mean absolute error (MAE) over vehicles present at $t$ (additional terms are described in Section~\ref{sec:loss}):
+where $\texttt{route\_left}_t$ is each vehicle's remaining route as of the final snapshot $t$ only, and $\hat{\mathbf{y}}_t[i]$ is the ETA for vehicle $i\in\mathcal{V}_t$. Training minimizes mean absolute error (MAE) over vehicles present at $t$:
 \begin{equation}
 \mathcal{L}_{\text{MAE}} = \frac{1}{|\mathcal{V}_t|}\sum_{i\in\mathcal{V}_t} \big| \hat{y}_t[i] - y_t[i] \big|.
 \end{equation}
 
 \subsection{Model Architecture}
-Our DSTRA-GNN (Dynamic Spatio-Temporal Route-Aware GNN) integrates spatial, temporal, and route information. See the complete architecture in Fig.~\ref{fig:temporal-moe-eta}. The main components are:
+Our DSTRA-GNN model integrates spatial, temporal, and route information. See the complete architecture in Fig.~\ref{fig:temporal-moe-eta}. The main components are:
 
 \begin{itemize}
-    \item \textbf{Graph Encoder:} Each snapshot $G_t$ is processed by a multi-layer GATv2-based encoder with residual connections and edge features, producing embeddings for junction and vehicle nodes (see the encoder panel in Fig.~\ref{fig:components}).
-    \item \textbf{Temporal Aggregator:} For each pre-final snapshot $\tau\in\{t{-}H{+}1,\ldots,t{-}1\}$ we take the static road-edge features (edge\_type$=0$) and build edge-wise sequences across time. A temporal module (Transformer with sinusoidal positional encodings; GRU optional) processes these sequences per edge; the temporally aggregated edge features are then projected and pooled over all static edges to a graph-level context vector (detail in Fig.~\ref{fig:transformer-detail}). This context is broadcast to all vehicles at $t^*$ for prediction. For \emph{all} temporal variants, temporal context is computed from static road edges only for $t{-}H{+}1\ldots t{-}1$, while the final snapshot $G_t$ is encoded with the appropriate spatial topology (static or full dynamic) per variant.
+    \item \textbf{Graph Encoder:} Each snapshot $G_t$ is processed by a 2-layer GATv2-based encoder with edge features, hidden size 128, 4 heads per layer, GELU activations, and LayerNorm residual connections (dropout 0.1), producing embeddings for junction and vehicle nodes, shown in the encoder panel in Fig.~\ref{fig:components}.
+    \item \textbf{Temporal Aggregator:} For each pre-final snapshot $\tau\in\{t{-}H{+}1,\ldots,t{-}1\}$ we take the static road-edge features (edge\_type$=0$) and build edge-wise sequences across time. A single-layer GRU (hidden size 128) processes these $H{-}1$ step sequences per edge. The final hidden state for each edge is projected and mean-pooled over all static edges to a graph-level context vector, detailed in Fig.~\ref{fig:gru-detail}. This context is broadcast to all vehicles at $t^*$ for prediction. For \emph{all} temporal variants, temporal context is computed from static road edges only for $t{-}H{+}1\ldots t{-}1$, while the final snapshot $G_t$ is encoded with the appropriate spatial topology (static or full dynamic) per variant. We summarize road edges, which are persistent across the window, rather than vehicles or interaction edges, which are transient, and broadcast one pooled vector to every vehicle rather than conditioning per-route, since ETA depends on network-wide conditions beyond a vehicle's own path.
     \item \textbf{Vehicle Selection:} From the final snapshot $G_t$, we retain only vehicle node embeddings, as these are the prediction targets for ETA.
-    \item \textbf{Route Encoder:} Each vehicle's remaining route (\texttt{vehicle\_route\_left}) is embedded via an edge-ID lookup (vocabulary $|E^{\mathrm{road}}|{=}1{,}294$, embedding dim 64) followed by mean pooling over the variable-length sequence (see the route panel in Fig.~\ref{fig:components}). The pooled route vector is concatenated with the vehicle embedding and temporal context when route awareness is enabled.
-    \item \textbf{Fusion and MoE Head:} Vehicle embeddings, enriched with route and temporal context, are fused through a feed-forward network and routed to a sparse Top-$k$ Mixture-of-Experts (MoE) head (router panel in Fig.~\ref{fig:components}), where specialized experts capture heterogeneous traffic regimes. The output is the ETA prediction for each vehicle.
+    \item \textbf{Route Encoder:} Each vehicle's remaining route (\texttt{vehicle\_route\_left}) is embedded via an edge-ID lookup with embedding dimension 64, followed by mean pooling over the variable-length sequence, shown in the route panel in Fig.~\ref{fig:components}b. The pooled route vector is concatenated with the vehicle embedding and temporal context when route awareness is enabled.
+    \item \textbf{Fusion and MoE Head:} Vehicle embeddings, enriched with route and temporal context, are fused through an MLP (256 hidden, GELU, LayerNorm, dropout 0.1) into a 192-dim representation and routed to a sparse Top-$k$ Mixture-of-Experts (MoE) head (dropout 0.1), shown in the router panel in Fig.~\ref{fig:components}, where specialized experts capture heterogeneous traffic regimes. We route to $k{=}2$ of 6 experts because traffic regimes differ qualitatively across the network and this setting balances per-vehicle specialization against expert-collapse risk while keeping the router tractable at our batch size, as Table~\ref{tab:moe-expert-sweep}'s sensitivity sweep confirms. The output is the ETA prediction for each vehicle.
 \end{itemize}
+
+\begin{table}[t]
+    \centering
+    \caption{Mixture-of-Experts count sensitivity, eval-range MAE (s) at full convergence. \textbf{Bold} = best per column.}\label{tab:moe-expert-sweep}
+    \begin{tabular}{@{}lcc@{}}
+        \toprule
+        \textbf{Experts} & Porto-G & SUMO \\
+        \midrule
+        2           & 71.22          & 75.37          \\
+        \textbf{3}  & \textbf{68.22} & 73.53          \\
+        4           & 69.35          & 74.89          \\
+        5           & 69.78          & 73.98          \\
+        6 (default) & 68.41          & \textbf{72.44} \\
+        7           & 70.02          & 75.77          \\
+        8           & 72.54          & 76.89          \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 % ===== TikZ Diagram of Model Architecture =====
 \begin{figure*}[t]
     \centering
     \resizebox{0.88\textwidth}{!}{\input{figures/fig_temporal_moe_eta.tikz}}
-    \caption{DSTRA-GNN architecture. A window of $T{=}30$ dynamic graph snapshots (shown as an overlapped deck) is processed by a \emph{shared} Graph Encoder; prediction is made at the last snapshot $t^*$. In the Full variant, a Route Encoder summarizes each vehicle's remaining path before Fusion and a Top-$k$ MoE head produces per-vehicle ETA.}\label{fig:temporal-moe-eta}
+    \caption{DSTRA-GNN architecture. A window of $H{=}30$ dynamic graph snapshots (shown as an overlapped deck) is processed by a \emph{shared} Graph Encoder, with prediction made at the last snapshot $t^*$. In the Full variant, a Route Encoder summarizes each vehicle's remaining path before Fusion and a Top-$k$ MoE head produces per-vehicle ETA.}\label{fig:temporal-moe-eta}
 \end{figure*}
 
 \begin{figure}[t]
     \centering
-    \resizebox{\linewidth}{!}{\input{figures/fig_temporal_transformer_detail.tikz}}
-    \caption{Temporal Transformer detail: per-edge sequences across $H{-}1$ snapshots are projected, positionally encoded, encoded by a Transformer stack, reduced via last-token + norm, projected back to edge dimension, then pooled over edges.}\label{fig:transformer-detail}
+    \resizebox{\linewidth}{!}{\input{figures/fig_temporal_gru_detail.tikz}}
+    \caption{Temporal GRU detail: per-edge feature sequences across $H{-}1$ snapshots are projected, processed by a GRU (hidden size 128), reduced via the final hidden state + LayerNorm, projected back to edge dimension, then mean-pooled over static edges to a graph-level context vector.}\label{fig:gru-detail}
 \end{figure}
 
-\subsection{Model Configuration}
-Unless stated otherwise, experiments use the following settings:
-\begin{itemize}
-    \item \textbf{Node/edge features}: 28 node features; 7 edge features. Temporal window $H{=}30$ consecutive snapshots.
-    \item \textbf{Graph encoder}: 2-layer GATv2 with edge features, hidden size 128, 4 heads per layer, GELU activations, LayerNorm residuals, dropout 0.1.
-    \item \textbf{Temporal module}: static-road edge sequences over the first $H{-}1$ snapshots. Default is a Transformer Encoder with $n_\text{head}{=}4$, $n_\text{layers}{=}2$, GELU, FFN size $2d$, dropout 0.1, and sinusoidal positional encodings; an optional single-layer GRU (hidden 128) is also supported. Aggregated edge context is projected, mean-pooled over static edges to a graph vector, then broadcast to vehicles.
-    \item \textbf{Route encoder}: edge-ID embedding of size 64 with mean pooling over \texttt{vehicle\_route\_left} (vocabulary size 1294).
-    \item \textbf{Fusion}: MLP  (256 hidden with GELU, LayerNorm, dropout 0.1) to a 192-dim fused representation.
-    \item \textbf{MoE head}: Top-$k{=}2$ sparse routing over $6$ experts (dropout 0.1). Predictions are made for vehicles in the last snapshot only.
-    \item \textbf{Target normalization}: we train in the $y_{log,z}$ space:
-    \begin{equation}
-    y_{log} = \log\big(1 + y_{sec}\big)
-    \end{equation}
-    \begin{equation}
-    y_{log,z} = \frac{y_{log} - \mu}{\sigma}
-    \end{equation}
-    where $y_{sec}$ is the raw ETA in seconds, and $(\mu,\sigma)$ are computed on the training set; metrics are reported after inverting to seconds.
-    \item \textbf{Training}: AdamW (lr $10^{-3}$, weight decay $10^{-2}$), linear warmup then cosine annealing ($T_{\text{max}}{=}200$), batch size 2, 200 epochs. Primary loss in target space with metrics reported after inversion to seconds.
-    \item \textbf{Router regularization}: load-balancing weight $\lambda_\text{lb}{=}0.05$ plus optional KL-to-uniform router regularization with weight 0.002.
-\end{itemize}
-
 \subsection{Loss Functions and Training Protocol}\label{sec:loss}
-We train the model with supervised regression on ETA targets using mean absolute error (MAE) in seconds:
+We train the model with supervised regression on ETA targets, in a normalized target space:
+\begin{equation}
+y_{log} = \log\big(1 + y_{sec}\big)
+\end{equation}
+\begin{equation}
+y_{log,z} = \frac{y_{log} - \mu}{\sigma}
+\end{equation}
+where $y_{sec}$ is the raw ETA in seconds and $(\mu,\sigma)$ are computed on the training set. The primary loss is MAE computed in this $y_{\log,z}$ space:
 \begin{equation}
 \mathcal{L}_{\text{MAE}} = \frac{1}{N}\sum_{i=1}^N \big| \hat{y}_i - y_i \big|,
 \end{equation}
-where $\hat{y}_i$ and $y_i$ are the predicted and true ETAs. Additional evaluation metrics include RMSE and mean absolute percentage error (MAPE). The optimization objective includes MoE load balancing and optional router regularization:
+where $\hat{y}_i$ and $y_i$ are the predicted and true values in $y_{\log,z}$ space. Metrics (MAE, RMSE, MAPE) are reported after inverting to seconds. The optimization objective includes MoE load balancing and optional router regularization:
 \begin{equation}
-\mathcal{L} = \mathcal{L}_{\text{reg}} + \lambda_{\text{lb}}\,\mathcal{L}_{\text{lb}} \;\; (\text{and optionally } 
+\mathcal{L} = \mathcal{L}_{\text{MAE}} + \lambda_{\text{lb}}\,\mathcal{L}_{\text{lb}} \;\; (\text{and optionally }
 \lambda_{\text{kl}}\,\mathrm{KL}(p\,\Vert\,\text{Uniform})),
 \end{equation}
-where $\mathcal{L}_{\text{lb}}$ encourages uniform expert usage via importance/load terms from the router, and $p$ are routing probabilities. Training occurs in a chosen target space (e.g., $y_{\text{log}}$ or $y_{\text{log\_z}}$), while metrics are reported after consistent inversion to seconds.
+where $\mathcal{L}_{\text{lb}}$ encourages uniform expert usage via importance/load terms from the router, and $p$ are routing probabilities. We set $\lambda_{\text{lb}}{=}0.05$, an optional $\lambda_{\text{kl}}{=}0.002$, a router temperature of 1.2, and additive Gaussian logit noise (std 0.15) during training.
+
+We train with AdamW (lr $10^{-3}$, weight decay $10^{-2}$), linear warmup then cosine annealing ($T_{\text{max}}{=}200$), batch size 2, 200 epochs. This configuration is shared by all six ablation variants on both SUMO and Porto-G, with no per-dataset or per-variant tuning, isolating the effect of the architectural toggles, defined in Sect.~\ref{sec:ablation-variants}, rather than per-run tuning. Training runs on a single NVIDIA RTX 5080 GPU at batch size 2: one step takes $\sim$0.18\,s on SUMO ($1{,}294$ road edges, up to $\sim$282 active vehicles per snapshot) and a comparable time on Porto-G (larger but sparser graphs, $\sim$10--15 active vehicles per snapshot), with a full run completing within a few hours per seed per variant and no training instability observed.
 
 For completeness, we report the following definitions used in evaluation:
 \begin{equation}
@@ -129,8 +230,8 @@ For completeness, we report the following definitions used in evaluation:
 \begin{equation}
 \mathrm{MAPE}(\%) = 100\cdot \frac{1}{N}\sum_{i=1}^{N} \left|\frac{\hat{y}_i - y_i}{y_i}\right|
 \end{equation}
-All metrics are computed in seconds (after inverting any target-space transforms) and averaged over vehicles in the test split.
+All metrics are computed in seconds. The precise evaluation protocol and population (trip-start predictions on the test split) are defined in Sect.~\ref{sec4}.
 
 \paragraph{Complexity and inference.}
-Per-snapshot spatial encoding is $\mathcal{O}(|E_t|)$; temporal aggregation is $\mathcal{O}(|E_\text{road}|\cdot(H{-}1))$ over static road edges only. Inference processes a window and emits per-vehicle ETAs at $t^*$ with negligible overhead beyond a single forward pass of the encoder plus temporal aggregator.
+Per-snapshot spatial encoding is $\mathcal{O}(|E_t|)$. Temporal aggregation is $\mathcal{O}(|E_\text{road}|\cdot(H{-}1))$ over static road edges only (GRU processes each edge sequence sequentially). Inference processes a window and emits per-vehicle ETAs at $t^*$ with negligible overhead beyond a single forward pass of the encoder plus GRU temporal aggregator: on a single RTX 5080, the full Porto-G test split runs at $\sim$58 windows/s ($\approx$17\,ms/window, batch size 1, including data loading), well within the real-time budget for the 30\,s snapshot cadence used throughout this work.
 

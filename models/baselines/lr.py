@@ -42,6 +42,11 @@ class LRBaseline:
         df  = train_df.filter(pl.col("polyline") != "[]")
         X, self._feature_names = extract_lr_features(df)
         y   = df["travel_time_s"].to_numpy()
+        self.fit_xy(X, y, self._feature_names)
+
+    def fit_xy(self, X: np.ndarray, y: np.ndarray, feature_names: list) -> None:
+        """Fit directly on a pre-extracted feature matrix (e.g. SUMO features)."""
+        self._feature_names = feature_names
         self._scaler.fit(X)
         self._model.fit(self._scaler.transform(X), y)
 
@@ -62,8 +67,12 @@ class LRBaseline:
     def evaluate(self, df: pl.DataFrame, split_name: str) -> dict:
         df_clean = df.filter(pl.col("polyline") != "[]")
         X, _     = extract_lr_features(df_clean)
-        y_pred   = np.clip(self._model.predict(self._scaler.transform(X)), 0.0, None)
         y_true   = df_clean["travel_time_s"].to_numpy()
+        return self.evaluate_xy(X, y_true, split_name)
+
+    def evaluate_xy(self, X: np.ndarray, y_true: np.ndarray, split_name: str) -> dict:
+        """Like `evaluate`, but on a pre-extracted feature matrix (e.g. SUMO features)."""
+        y_pred = np.clip(self._model.predict(self._scaler.transform(X)), 0.0, None)
 
         coefs = {
             name: round(float(c), 6)
@@ -71,7 +80,7 @@ class LRBaseline:
         }
         return {
             "split":        split_name,
-            "n_trips":      len(df_clean),
+            "n_trips":      len(y_true),
             "mae_s":        round(mae(y_true, y_pred), 4),
             "rmse_s":       round(rmse(y_true, y_pred), 4),
             "mape_pct":     round(mape(y_true, y_pred), 4),
